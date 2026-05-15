@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es" class="dark">
 <head>
 <meta charset="UTF-8">
@@ -4128,7 +4128,8 @@ async function eliminarEventoOrganizador(eventId, btn){
   var oldText = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = 'Eliminando...'; }
   try{
-    if(!/^\d+$/.test(String(eventId))){
+    var token = getAuthToken();
+    if(BACKEND && token && token !== 'offline-token'){
       await apiDelete('/api/productos/eventos/' + encodeURIComponent(eventId));
     }
     var store = ejLoadStore();
