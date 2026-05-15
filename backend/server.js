@@ -1754,7 +1754,13 @@ async function procesarPago(ordenId, pago) {
         'INSERT INTO entradas (id, orden_id, tipo_entrada_id, token_qr, estado, numero) VALUES ($1,$2,$3,$4,\'valida\',$5) ON CONFLICT DO NOTHING',
         [entradaId, ordenId, item.tipo_entrada_id, token, i + 1]
       );
-      await db.query('UPDATE tipos_entrada SET disponibles = GREATEST(disponibles-1,0) WHERE id=$1', [item.tipo_entrada_id]);
+      const { rows: stockRows } = await db.query(
+        'UPDATE tipos_entrada SET disponibles = GREATEST(disponibles-1,0) WHERE id=$1 RETURNING disponibles',
+        [item.tipo_entrada_id]
+      );
+      if (stockRows[0]?.disponibles === 0) {
+        console.warn(`[STOCK] Tipo entrada ${item.tipo_entrada_id} llegó a 0 (orden ${ordenId})`);
+      }
  
       const qrDataUrl = await makeTicketQr(token);
       entradas.push({ id: entradaId, token, qrDataUrl, tipo: item.tipo_nombre, evento: item.evento_nombre, fecha: item.fecha, hora: item.hora, lugar: item.lugar, numero: i+1, total_tipo: item.cantidad });
