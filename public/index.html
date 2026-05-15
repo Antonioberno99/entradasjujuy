@@ -1584,8 +1584,16 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
     </div>
     <div class="compra-hdr">
       <button onclick="GOI('publico','main')" style="min-height:var(--touch);display:flex;align-items:center;background:none;border:none;color:rgba(0,0,0,.4);font-size:12px;cursor:pointer;padding:0;margin-bottom:14px;font-family:Outfit,sans-serif;position:relative;z-index:1">Volver a eventos</button>
-      <div class="compra-nm" id="compra-evento-nombre">Seleccioná un evento</div>
-      <div class="compra-dt" id="compra-evento-detalle">Elegí un evento publicado para iniciar la compra.</div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div class="compra-nm" id="compra-evento-nombre">Seleccioná un evento</div>
+          <div class="compra-dt" id="compra-evento-detalle">Elegí un evento publicado para iniciar la compra.</div>
+        </div>
+        <button id="compra-share-btn" onclick="compartirEventoActual(event)" style="display:none;flex-shrink:0;margin-top:2px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:8px;cursor:pointer;padding:7px 12px;color:#fff;font-size:11px;font-family:Outfit,sans-serif;display:flex;align-items:center;gap:5px;line-height:1;position:relative;z-index:1">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          Compartir
+        </button>
+      </div>
     </div>
     <div class="compra-body">
       <div class="compra-stl">Seleccioná tus entradas</div>
@@ -3920,6 +3928,8 @@ async function seleccionarEventoCompraRemoto(id){
 function prepararCompraEvento(ev){
   var tipos = ev.tipos_entrada || [];
   EVENTO_COMPRA_ID = ev.id;
+  var shareBtn = document.getElementById('compra-share-btn');
+  if(shareBtn) shareBtn.style.display = 'flex';
   TIPOS_COMPRA.g = tipos[0] ? tipos[0].id : '';
   TIPOS_COMPRA.p = tipos[1] ? tipos[1].id : '';
   TIPOS_COMPRA.v = tipos[2] ? tipos[2].id : '';
@@ -3996,6 +4006,14 @@ async function cargarDirectoriosPublicos(){
   ejSaveStore(store);
   renderArtists(store.artists || []);
   renderServices(store.services || []);
+}
+
+function compartirEventoActual(e){
+  if(e) e.stopPropagation();
+  var nombre = (document.getElementById('compra-evento-nombre') || {}).textContent || 'este evento';
+  compartirEvento(EVENTO_COMPRA_ID, nombre, null);
+  var btn = document.getElementById('compra-share-btn');
+  if(btn){ var orig=btn.innerHTML; btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ¡Listo!'; setTimeout(function(){ btn.innerHTML=orig; },1800); }
 }
 
 function compartirEvento(id, nombre, e){
