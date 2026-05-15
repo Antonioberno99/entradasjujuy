@@ -46,7 +46,7 @@ app.use(cors({
     }
     return callback(new Error(`CORS no permitido para ${origin}`));
   },
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'DELETE', 'PUT'],
 }));
  
 // Body parsing — webhook necesita raw
@@ -1091,6 +1091,87 @@ app.delete('/api/productos/eventos/:id', requireAuth, async (req, res) => {
     await client.query('ROLLBACK').catch(() => {});
     console.error('[DELETE EVENTO]', err.message);
     res.status(500).json({ ok: false, error: 'No pudimos eliminar el evento' });
+  } finally {
+    client.release();
+  }
+});
+
+app.put('/api/productos/eventos/:id', requireAuth, async (req, res) => {
+  const eventId = String(req.params.id || '').trim();
+  if (!eventId) return res.status(400).json({ ok: false, error: 'Falta el ID del evento' });
+
+  const body = req.body || {};
+  const nombre = String(body.name || body.nombre || '').trim();
+  const fecha = String(body.date || body.fecha || '').trim();
+  const hora = String(body.time || body.hora || '20:00').trim() || '20:00';
+  const capacidad = parseCapacity(body.capacity || body.capacidad);
+  const tipoEvento = String(body.type || body.tipo || 'pago').trim();
+  const esGratis = tipoEvento === 'gratis' || tipoEvento === 'reserva';
+  const precioBase = esGratis ? 0 : parseMoney(body.precio_base || body.price);
+  const fee = esGratis ? 0 : parseMoney(body.fee || body.fee_organizador);
+  const activo = body.activo === true || body.activo === 'true';
+
+  if (!nombre) return res.status(400).json({ ok: false, error: 'El evento necesita nombre' });
+  if (!fecha) return res.status(400).json({ ok: false, error: 'El evento necesita fecha' });
+  if (!esGratis && precioBase <= 0) return res.status(400).json({ ok: false, error: 'Los eventos pagos necesitan un precio mayor a cero' });
+  if (activo && !esGratis && !req.user.mp_access_token) {
+    return res.status(409).json({ ok: false, code: 'seller_mp_not_connected', error: 'Conecta Mercado Pago antes de publicar eventos pagos' });
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: owned } = await client.query(
+      'SELECT id FROM eventos WHERE id = $1 AND organizador_id = $2 FOR UPDATE',
+      [eventId, req.user.id]
+    );
+    if (!owned.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ ok: false, error: 'Evento no encontrado o no te pertenece' });
+    }
+
+    await client.query(`
+      UPDATE eventos SET
+        nombre = $1, descripcion = $2, categoria = $3, fecha = $4, hora = $5,
+        lugar = $6, ciudad = $7, capacidad_total = $8, imagen_url = $9, activo = $10
+      WHERE id = $11
+    `, [
+      nombre,
+      body.desc || body.descripcion || '',
+      body.category || body.categoria || 'Evento',
+      fecha, hora,
+      body.place || body.lugar || '',
+      body.city || body.ciudad || 'Jujuy',
+      capacidad,
+      body.flyer || body.imagen_url || '',
+      activo,
+      eventId,
+    ]);
+
+    const { rows: tipos } = await client.query(
+      'SELECT id, capacidad FROM tipos_entrada WHERE evento_id = $1 ORDER BY created_at ASC LIMIT 1',
+      [eventId]
+    );
+    if (tipos.length) {
+      const viejaCapacidad = Number(tipos[0].capacidad || 0);
+      await client.query(`
+        UPDATE tipos_entrada SET
+          precio_base = $1,
+          fee_organizador = $2,
+          capacidad = $3,
+          disponibles = GREATEST(0, disponibles + ($3 - $4))
+        WHERE id = $5
+      `, [precioBase, fee, capacidad, viejaCapacidad, tipos[0].id]);
+    }
+
+    await client.query('COMMIT');
+    const event = await getEventWithTickets(eventId);
+    res.json({ ok: true, data: htmlEvent(event), evento: htmlEvent(event) });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[EDITAR EVENTO]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
   } finally {
     client.release();
   }

@@ -2528,6 +2528,40 @@ window.addEventListener('load', function() {
      ================================================================ -->
 <div id="auth-backdrop" onclick="cerrarAuth()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)"></div>
 
+<!-- ================================================================
+     MODAL EDITAR EVENTO
+     ================================================================ -->
+<div id="edit-evento-backdrop" onclick="cerrarEditarEvento()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9997"></div>
+<div id="edit-evento-modal" role="dialog" aria-modal="true" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;padding:24px 20px max(24px,env(safe-area-inset-bottom));z-index:9998;max-width:480px;max-height:92vh;overflow-y:auto;margin:0 auto;box-shadow:0 -8px 40px rgba(0,0,0,0.2);transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.2,0.64,1);border-top:1px solid var(--b1)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:var(--t1)">Editar evento</div>
+    <button onclick="cerrarEditarEvento()" style="background:none;border:none;font-size:22px;color:var(--t3);cursor:pointer;padding:4px 8px;line-height:1">✕</button>
+  </div>
+  <input type="hidden" id="edit-evento-id">
+  <div class="fg"><label class="fl">Nombre del evento</label><input class="fi" id="edit-nombre" type="text" placeholder="Nombre del evento"></div>
+  <div class="fg"><label class="fl">Descripción</label><textarea class="fi-area" id="edit-desc" placeholder="Descripción del evento"></textarea></div>
+  <div class="fg"><label class="fl">Categoría</label><select class="fi-sel" id="edit-categoria"><option>Carnaval</option><option>Folklore</option><option>Recital</option><option>Teatro</option><option>Festival de coplas</option><option>Arte</option><option>Deportes</option><option>Ritual tradicional</option><option>Otro</option></select></div>
+  <div class="fg-row"><div class="fg"><label class="fl">Fecha</label><input class="fi" id="edit-fecha" type="date"></div><div class="fg"><label class="fl">Hora</label><input class="fi" id="edit-hora" type="time"></div></div>
+  <div class="fg"><label class="fl">Lugar</label><input class="fi" id="edit-lugar" type="text" placeholder="Lugar del evento"></div>
+  <div class="fg-row">
+    <div class="fg"><label class="fl">Tipo</label><select class="fi-sel" id="edit-tipo" onchange="editToggleFee()"><option value="pago">Pago</option><option value="gratis">Gratuito</option><option value="reserva">Gratuito con reserva</option></select></div>
+    <div class="fg"><label class="fl">Capacidad máx.</label><input class="fi" id="edit-capacidad" type="number" placeholder="500"></div>
+  </div>
+  <div id="edit-precio-sec">
+    <div class="fg"><label class="fl">Precio base ($)</label><input class="fi" id="edit-precio" type="number" placeholder="3000"></div>
+    <div class="fg"><label class="fl">Tu cargo por servicio ($)</label><input class="fi" id="edit-fee" type="number" placeholder="0"></div>
+  </div>
+  <div class="fg" style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+    <input type="checkbox" id="edit-activo" style="width:18px;height:18px;accent-color:var(--s);flex-shrink:0">
+    <label for="edit-activo" style="font-size:13px;color:var(--t2);cursor:pointer;margin:0">Evento activo (visible al público)</label>
+  </div>
+  <div id="edit-nota" style="font-size:12px;margin-top:8px;min-height:18px;color:var(--t3)"></div>
+  <button class="btn-sub c" onclick="guardarEdicionEvento()" style="margin-top:12px" id="edit-save-btn">Guardar cambios</button>
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--b1)">
+    <button id="edit-delete-btn" onclick="eliminarDesdeModal()" style="width:100%;height:42px;border:1px solid rgba(196,64,64,.38);border-radius:10px;background:none;color:#C44040;font-size:13px;cursor:pointer;font-family:Outfit,sans-serif">Eliminar evento</button>
+  </div>
+</div>
+
 <div id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;padding:24px 20px max(24px,env(safe-area-inset-bottom));z-index:9999;max-width:480px;max-height:92vh;overflow-y:auto;margin:0 auto;box-shadow:0 -8px 40px rgba(0,0,0,0.2);transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.2,0.64,1);border-top:1px solid var(--b1)">
   <div style="width:36px;height:4px;border-radius:2px;background:var(--b2);margin:0 auto 20px"></div>
   <div id="auth-title" style="font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--t1);margin-bottom:4px">Accedé a EntradasJujuy</div>
@@ -3473,6 +3507,18 @@ async function apiDelete(path){
   return data;
 }
 
+async function apiPut(path, body){
+  if(!BACKEND) throw new Error('Backend no configurado');
+  var res = await fetch(BACKEND + path, {
+    method: 'PUT',
+    headers: apiHeaders(),
+    body: JSON.stringify(body)
+  });
+  var data = await res.json().catch(function(){ return {}; });
+  if(!res.ok || !data.ok) throw new Error(data.error || 'Error del servidor');
+  return data;
+}
+
 async function cargarMisProductos(){
   var token = getAuthToken();
   if(!BACKEND || !token || token === 'offline-token') return;
@@ -3485,6 +3531,7 @@ async function cargarMisProductos(){
     var mineIds = mine.map(function(ev){ return String(ev.id); });
     var publicEvents = (store.events || []).filter(function(ev){ return mineIds.indexOf(String(ev.id)) === -1; });
     store.events = mine.concat(publicEvents);
+    store.myEvents = mine;
     store.artists = data.data.artists || store.artists || [];
     store.services = data.data.services || store.services || [];
     ejSaveStore(store);
@@ -4090,7 +4137,7 @@ async function publicarServicio(ev){
 
 function renderPublishedProjects(){
   var store = ejLoadStore();
-  renderOrgEvents(store.events);
+  renderOrgEvents(store.myEvents || []);
   renderArtists(store.artists);
   renderServices(store.services);
 }
@@ -4115,7 +4162,7 @@ function renderOrgEvents(events){
       '<div class="ev-row-stats" data-org-event-id="'+escapeHtml(String(item.id))+'"><div class="ev-row-stat">'+(item.flyer ? 'Flyer cargado' : 'Sin flyer')+'</div></div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">'+
         '<button class="btn-sec" style="height:38px" onclick="prepararRegaloEvento(\''+escapeHtml(String(item.id))+'\')">Enviar QR de regalo</button>'+
-        '<button class="btn-sec" style="height:38px;border-color:rgba(196,64,64,.38);color:#C44040" onclick="eliminarEventoOrganizador(\''+escapeHtml(String(item.id))+'\', this)">Eliminar evento</button>'+
+        '<button class="btn-sec" style="height:38px" onclick="editarEvento(\''+escapeHtml(String(item.id))+'\')">Editar evento</button>'+
       '</div>';
     var firstRow = list.querySelector('.ev-row');
     list.insertBefore(row, firstRow);
@@ -4134,8 +4181,9 @@ async function eliminarEventoOrganizador(eventId, btn){
     }
     var store = ejLoadStore();
     store.events = (store.events || []).filter(function(ev){ return String(ev.id) !== String(eventId); });
+    store.myEvents = (store.myEvents || []).filter(function(ev){ return String(ev.id) !== String(eventId); });
     ejSaveStore(store);
-    renderOrgEvents(store.events);
+    renderOrgEvents(store.myEvents || []);
     renderPublicEvents(store.events);
     renderFlyerMarketing();
     cargarOrganizadorStats();
@@ -4156,6 +4204,122 @@ function prepararRegaloEvento(eventId){
   }
   var name = document.getElementById('gift-name');
   if(name) setTimeout(function(){ name.focus(); }, 80);
+}
+
+function abrirEditarEvento(){
+  var modal = document.getElementById('edit-evento-modal');
+  var backdrop = document.getElementById('edit-evento-backdrop');
+  if(modal){ modal.style.display = 'block'; setTimeout(function(){ modal.style.transform = 'translateY(0)'; }, 10); }
+  if(backdrop) backdrop.style.display = 'block';
+}
+
+function cerrarEditarEvento(){
+  var modal = document.getElementById('edit-evento-modal');
+  var backdrop = document.getElementById('edit-evento-backdrop');
+  if(modal){ modal.style.transform = 'translateY(100%)'; setTimeout(function(){ modal.style.display = 'none'; }, 350); }
+  if(backdrop) backdrop.style.display = 'none';
+}
+
+function editToggleFee(){
+  var tipo = document.getElementById('edit-tipo');
+  var sec = document.getElementById('edit-precio-sec');
+  if(!tipo || !sec) return;
+  sec.style.display = (tipo.value === 'gratis' || tipo.value === 'reserva') ? 'none' : 'block';
+}
+
+function editarEvento(eventId){
+  var store = ejLoadStore();
+  var ev = (store.myEvents || []).find(function(e){ return String(e.id) === String(eventId); });
+  if(!ev) return;
+  var set = function(id, val){ var el = document.getElementById(id); if(el) el.value = (val === null || val === undefined) ? '' : val; };
+  document.getElementById('edit-evento-id').value = ev.id;
+  set('edit-nombre', ev.name);
+  set('edit-desc', ev.desc);
+  var catSel = document.getElementById('edit-categoria');
+  if(catSel){ var opt = Array.from(catSel.options).find(function(o){ return o.value === ev.category; }); if(opt) catSel.value = ev.category; }
+  set('edit-fecha', ev.date);
+  set('edit-hora', ev.time);
+  set('edit-lugar', ev.place);
+  var tipoSel = document.getElementById('edit-tipo');
+  if(tipoSel) tipoSel.value = ev.type || 'pago';
+  set('edit-capacidad', ev.capacity);
+  var activo = document.getElementById('edit-activo');
+  if(activo) activo.checked = (ev.status === 'published');
+  var tipos = Array.isArray(ev.tipos_entrada) ? ev.tipos_entrada : [];
+  var primero = tipos[0] || {};
+  set('edit-precio', primero.precio_base || 0);
+  set('edit-fee', primero.fee_organizador || 0);
+  var nota = document.getElementById('edit-nota');
+  if(nota) nota.textContent = '';
+  editToggleFee();
+  abrirEditarEvento();
+}
+
+async function guardarEdicionEvento(){
+  var eventId = (document.getElementById('edit-evento-id') || {}).value;
+  if(!eventId) return;
+  var nota = document.getElementById('edit-nota');
+  var btn = document.getElementById('edit-save-btn');
+  if(nota){ nota.style.color = 'var(--t3)'; nota.textContent = 'Guardando...'; }
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando...'; }
+  var g = function(id){ var el = document.getElementById(id); return el ? el.value : ''; };
+  var payload = {
+    name:       g('edit-nombre').trim(),
+    desc:       g('edit-desc').trim(),
+    category:   g('edit-categoria'),
+    date:       g('edit-fecha'),
+    time:       g('edit-hora') || '20:00',
+    place:      g('edit-lugar').trim(),
+    type:       g('edit-tipo') || 'pago',
+    capacity:   g('edit-capacidad') || '100',
+    precio_base: g('edit-precio') || '0',
+    fee:        g('edit-fee') || '0',
+    activo:     !!(document.getElementById('edit-activo') || {}).checked
+  };
+  try{
+    var data = await apiPut('/api/productos/eventos/' + encodeURIComponent(eventId), payload);
+    var updated = data.data || data.evento;
+    if(updated){
+      var store = ejLoadStore();
+      store.myEvents = (store.myEvents || []).map(function(ev){ return String(ev.id) === String(eventId) ? updated : ev; });
+      store.events   = (store.events   || []).map(function(ev){ return String(ev.id) === String(eventId) ? updated : ev; });
+      ejSaveStore(store);
+      renderOrgEvents(store.myEvents || []);
+      renderPublicEvents(store.events);
+      actualizarSelectorRegalos(store.myEvents || []);
+    }
+    if(nota){ nota.style.color = 'var(--g)'; nota.textContent = 'Cambios guardados correctamente.'; }
+    setTimeout(cerrarEditarEvento, 1200);
+  }catch(e){
+    if(nota){ nota.style.color = '#C44040'; nota.textContent = e.message || 'No se pudieron guardar los cambios.'; }
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Guardar cambios'; }
+  }
+}
+
+async function eliminarDesdeModal(){
+  var eventId = (document.getElementById('edit-evento-id') || {}).value;
+  if(!eventId) return;
+  if(!confirm('¿Eliminar este evento? Si ya tiene entradas emitidas, el sistema no lo va a permitir por seguridad.')) return;
+  var nota = document.getElementById('edit-nota');
+  var btn = document.getElementById('edit-delete-btn');
+  if(nota){ nota.style.color = 'var(--t3)'; nota.textContent = 'Eliminando...'; }
+  if(btn){ btn.disabled = true; btn.textContent = 'Eliminando...'; }
+  try{
+    await apiDelete('/api/productos/eventos/' + encodeURIComponent(eventId));
+    var store = ejLoadStore();
+    store.myEvents = (store.myEvents || []).filter(function(ev){ return String(ev.id) !== String(eventId); });
+    store.events   = (store.events   || []).filter(function(ev){ return String(ev.id) !== String(eventId); });
+    ejSaveStore(store);
+    renderOrgEvents(store.myEvents || []);
+    renderPublicEvents(store.events);
+    renderFlyerMarketing();
+    cargarOrganizadorStats();
+    cerrarEditarEvento();
+  }catch(e){
+    if(nota){ nota.style.color = '#C44040'; nota.textContent = e.message || 'No pudimos eliminar el evento.'; }
+    if(btn){ btn.disabled = false; btn.textContent = 'Eliminar evento'; }
+  }
 }
 
 function renderArtists(artists){
