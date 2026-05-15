@@ -1565,6 +1565,9 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
 
   <!-- COMPRA -->
   <div id="pub-compra" class="is">
+    <div id="compra-flyer-wrap" style="display:none;width:100%;overflow:hidden;max-height:240px;background:var(--bg2)">
+      <img id="compra-flyer-img" src="" alt="Flyer del evento" style="width:100%;max-height:240px;object-fit:cover;display:block">
+    </div>
     <div class="compra-hdr">
       <button onclick="GOI('publico','main')" style="min-height:var(--touch);display:flex;align-items:center;background:none;border:none;color:rgba(0,0,0,.4);font-size:12px;cursor:pointer;padding:0;margin-bottom:14px;font-family:Outfit,sans-serif;position:relative;z-index:1">Volver a eventos</button>
       <div class="compra-nm" id="compra-evento-nombre">Seleccioná un evento</div>
@@ -3881,6 +3884,12 @@ function actualizarVistaCompra(ev){
   var detalle = document.getElementById('compra-evento-detalle');
   if(nombre) nombre.textContent = ev.name || 'Evento';
   if(detalle) detalle.textContent = [ev.date, ev.time, ev.place].filter(Boolean).join(' - ') || 'Evento publicado';
+  var flyerWrap = document.getElementById('compra-flyer-wrap');
+  var flyerImg = document.getElementById('compra-flyer-img');
+  if(flyerWrap && flyerImg){
+    if(ev.flyer){ flyerImg.src = ev.flyer; flyerWrap.style.display = 'block'; }
+    else { flyerWrap.style.display = 'none'; flyerImg.src = ''; }
+  }
   ['g','p','v'].forEach(function(key, idx){
     var tipo = (ev.tipos_entrada || [])[idx];
     var row = document.getElementById('ticket-row-' + key);
