@@ -1731,8 +1731,8 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
             </div>
           </div>
         </div>
-        <button class="btn-sub c" onclick="publicarEventoOrg(event)">Publicar evento</button>
-        <button class="btn-sec" onclick="guardarBorradorOrg(event)">Guardar como borrador</button>
+        <button class="btn-sub c" id="org-publicar-btn" onclick="publicarEventoOrg(event)">Publicar evento</button>
+        <button class="btn-sec" id="org-borrador-btn" onclick="guardarBorradorOrg(event)">Guardar como borrador</button>
         <div class="publish-note" id="org-publish-note"></div>
       </div>
     </div>
@@ -4036,22 +4036,40 @@ function actualizarStoreConEvento(item){
   return store;
 }
 
+var _publicandoEvento = false;
+
+function btnLoading(btn, text){
+  if(!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span style="display:inline-flex;align-items:center;justify-content:center;gap:8px">'
+    + '<span style="width:15px;height:15px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;display:inline-block;animation:spin 0.7s linear infinite;flex-shrink:0"></span>'
+    + text + '</span>';
+}
+
+function btnReset(btn, text){
+  if(!btn) return;
+  btn.disabled = false;
+  btn.textContent = text;
+}
+
 async function publicarEventoOrg(ev){
   if(ev) ev.preventDefault();
+  if(_publicandoEvento) return;
   if(!requirePublishedSession('org-publish-note')) return;
-  var root = document.getElementById('org-nuevo');
-  var payload = leerCamposEvento(root);
-  var flyerInput = document.getElementById('org-flyer');
-  payload.flyer = await resizeImageFile(flyerInput && flyerInput.files ? flyerInput.files[0] : null);
-  if(payload.type === 'pago' && (!_mpStatus || !_mpStatus.connected)){
-    showPublishNote('org-publish-note', mercadoPagoRequiredMessage());
-    var mpCard = document.getElementById('mp-publish-card');
-    if(mpCard) mpCard.scrollIntoView({ behavior:'smooth', block:'center' });
-    return;
-  }
-  var btn = root.querySelector('.btn-sub');
-  if(btn){ btn.disabled = true; btn.textContent = 'Publicando...'; }
+  _publicandoEvento = true;
+  var btn = document.getElementById('org-publicar-btn');
+  btnLoading(btn, 'Publicando...');
   try{
+    var root = document.getElementById('org-nuevo');
+    var payload = leerCamposEvento(root);
+    var flyerInput = document.getElementById('org-flyer');
+    payload.flyer = await resizeImageFile(flyerInput && flyerInput.files ? flyerInput.files[0] : null);
+    if(payload.type === 'pago' && (!_mpStatus || !_mpStatus.connected)){
+      showPublishNote('org-publish-note', mercadoPagoRequiredMessage());
+      var mpCard = document.getElementById('mp-publish-card');
+      if(mpCard) mpCard.scrollIntoView({ behavior:'smooth', block:'center' });
+      return;
+    }
     var data = await apiPost('/api/productos/eventos', payload);
     var item = data.data || data.evento;
     if(!item || !item.id) throw new Error('Respuesta inesperada del servidor');
@@ -4062,22 +4080,24 @@ async function publicarEventoOrg(ev){
     renderOrgEvents(store.myEvents);
     actualizarSelectorRegalos(store.myEvents);
     cargarOrganizadorStats();
-    showPublishNote('org-publish-note', 'Evento publicado. Ya aparece para vender entradas.');
+    orgGO('org-eventos');
   }catch(e){
     showPublishNote('org-publish-note', /Mercado Pago|seller_mp_not_connected/i.test(e.message || '') ? mercadoPagoRequiredMessage() : (e.message || 'No se pudo publicar el evento.'));
   }finally{
-    if(btn){ btn.disabled = false; btn.textContent = 'Publicar evento'; }
+    _publicandoEvento = false;
+    btnReset(btn, 'Publicar evento');
   }
 }
 
 async function guardarBorradorOrg(ev){
   if(ev) ev.preventDefault();
   if(!requirePublishedSession('org-publish-note')) return;
-  var root = document.getElementById('org-nuevo');
-  var payload = leerCamposEvento(root);
-  var btn = root.querySelector('.btn-sec');
-  if(btn){ btn.disabled = true; btn.textContent = 'Guardando...'; }
+  var btn = document.getElementById('org-borrador-btn');
+  if(btn && btn.disabled) return;
+  btnLoading(btn, 'Guardando...');
   try{
+    var root = document.getElementById('org-nuevo');
+    var payload = leerCamposEvento(root);
     var data = await apiPost('/api/productos/eventos/borrador', payload);
     var item = data.data || data.evento;
     if(!item || !item.id) throw new Error('Respuesta inesperada del servidor');
@@ -4085,11 +4105,11 @@ async function guardarBorradorOrg(ev){
     limpiarFormEvento(root);
     renderOrgEvents(store.myEvents);
     actualizarSelectorRegalos(store.myEvents);
-    showPublishNote('org-publish-note', 'Borrador guardado. Lo encontrás en "Mis eventos".');
+    orgGO('org-eventos');
   }catch(e){
     showPublishNote('org-publish-note', e.message || 'No se pudo guardar el borrador.');
   }finally{
-    if(btn){ btn.disabled = false; btn.textContent = 'Guardar como borrador'; }
+    btnReset(btn, 'Guardar como borrador');
   }
 }
 
