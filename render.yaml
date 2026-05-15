@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: entradasjujuy-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm run start:render
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_CLIENT_ID
+        sync: false
+      - key: MP_CLIENT_SECRET
+        sync: false
+      - key: MP_REDIRECT_URI
+        sync: false
+      - key: MP_MARKETPLACE_FEE_PERCENT
+        value: "10"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

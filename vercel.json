@@ -1,0 +1,11 @@
+{
+  "installCommand": "echo \"Sin dependencias\"",
+  "buildCommand": "echo \"Sitio estatico listo\"",
+  "outputDirectory": "public",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

@@ -1,0 +1,154 @@
+/* ============================================================
+   Footer Styles
+   ============================================================ */
+
+.footer {
+  position: relative;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-3xl) 0 var(--space-xl);
+  overflow: hidden;
+}
+
+.footer__glow {
+  position: absolute;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 400px;
+  background: radial-gradient(ellipse, rgba(196, 105, 43, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Top */
+.footer__top {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--space-3xl);
+  margin-bottom: var(--space-xl);
+}
+
+.footer__brand {
+  max-width: 320px;
+}
+
+.footer__logo {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  text-decoration: none;
+  display: inline-block;
+  margin-bottom: var(--space-md);
+}
+
+.footer__logo-entradas {
+  color: var(--color-tierra);
+}
+
+.footer__logo-jujuy {
+  color: var(--color-cielo);
+}
+
+.footer__tagline {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* Links grid */
+.footer__links-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-xl);
+}
+
+.footer__links-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.footer__links-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: var(--space-sm);
+}
+
+.footer__link {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--duration-fast);
+  padding: 2px 0;
+}
+
+.footer__link:hover {
+  color: var(--color-tierra);
+}
+
+/* Divider */
+.footer__divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin-bottom: var(--space-lg);
+}
+
+/* Bottom */
+.footer__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.footer__copy {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.footer__badges {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.footer__badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.footer__badge svg {
+  opacity: 0.6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .footer__top {
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+  }
+  
+  .footer__links-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .footer__bottom {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .footer__links-grid {
+    grid-template-columns: 1fr;
+  }
+}

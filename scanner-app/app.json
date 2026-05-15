@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "EntradasJujuy Control",
+    "slug": "entradasjujuy-scanner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0704"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.entradasjujuy.scanner",
+      "infoPlist": {
+        "NSCameraUsageDescription": "EntradasJujuy necesita acceso a la camara para escanear los codigos QR de las entradas."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0704"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.entradasjujuy.scanner",
+      "versionCode": 1,
+      "permissions": ["CAMERA"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "EntradasJujuy necesita acceso a la camara para escanear QR.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ]
+  }
+}

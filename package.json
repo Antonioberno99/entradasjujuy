@@ -1,0 +1,9 @@
+{
+  "name": "entradasjujuy",
+  "private": true,
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "build": "echo \"Sitio estatico listo\"",
+    "preview": "cd frontend && npm run preview"
+  }
+}

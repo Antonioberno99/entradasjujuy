@@ -1,0 +1,30 @@
+{
+  "name": "entradasjujuy-backend",
+  "version": "1.0.0",
+  "description": "Backend EntradasJujuy — Mercado Pago + QR",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:render": "node scripts/apply-launch-schema.js && node server.js",
+    "dev": "nodemon server.js",
+    "db:setup": "psql $DATABASE_URL -f schema.sql",
+    "db:migrate": "node scripts/apply-launch-schema.js",
+    "db:clean:launch": "psql $DATABASE_URL -f scripts/clean-launch.sql"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "google-auth-library": "^10.6.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mercadopago": "^2.0.15",
+    "nodemailer": "^8.0.7",
+    "pg": "^8.11.5",
+    "qrcode": "^1.5.3",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

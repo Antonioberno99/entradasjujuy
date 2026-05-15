@@ -1,0 +1,13 @@
+backend/node_modules
+frontend/node_modules
+scanner-app/node_modules
+
+backend/.env
+frontend/.env
+scanner-app/.env
+.env
+.env.local
+
+*.log
+npm-debug.log*
+yarn-debug.log*

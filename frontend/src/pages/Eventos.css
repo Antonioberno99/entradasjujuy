@@ -1,0 +1,104 @@
+/* ============================================================
+   Eventos Page Styles
+   ============================================================ */
+
+.eventos-page__header {
+  padding-top: calc(var(--header-height) + var(--space-3xl));
+  padding-bottom: var(--space-xl);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.eventos-page__title {
+  font-family: var(--font-display);
+  font-size: var(--text-5xl);
+  font-weight: 900;
+  letter-spacing: -2px;
+  margin-bottom: var(--space-sm);
+}
+
+.eventos-page__subtitle {
+  font-size: var(--text-lg);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xl);
+}
+
+/* Filters */
+.eventos-page__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.eventos-page__filter {
+  padding: 8px 20px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.eventos-page__filter:hover {
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+.eventos-page__filter.active {
+  background: linear-gradient(135deg, var(--color-tierra), var(--color-tierra-light));
+  color: white;
+  border-color: transparent;
+}
+
+/* Grid */
+.eventos-page__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-lg);
+}
+
+/* Empty */
+.eventos-page__empty {
+  text-align: center;
+  padding: var(--space-4xl) var(--space-lg);
+  color: var(--text-secondary);
+}
+
+.eventos-page__empty-icon {
+  font-size: 64px;
+  margin-bottom: var(--space-lg);
+}
+
+.eventos-page__empty h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .eventos-page__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .eventos-page__title {
+    font-size: var(--text-4xl);
+  }
+  
+  .eventos-page__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .eventos-page__title {
+    font-size: var(--text-3xl);
+    letter-spacing: -1px;
+  }
+}

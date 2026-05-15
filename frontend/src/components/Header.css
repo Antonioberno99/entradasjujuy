@@ -1,0 +1,207 @@
+/* ============================================================
+   Header Styles
+   ============================================================ */
+
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: var(--header-height);
+  transition: all var(--duration-normal) var(--ease-out);
+  border-bottom: 1px solid transparent;
+}
+
+.header--scrolled {
+  background: rgba(6, 4, 2, 0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom-color: var(--border-subtle);
+}
+
+.header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  gap: var(--space-xl);
+}
+
+/* Logo */
+.header__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-decoration: none;
+  z-index: 10;
+}
+
+.header__logo-icon {
+  display: flex;
+  color: var(--bg-card);
+}
+
+.header__logo-icon .logo-bg {
+  transition: color var(--duration-normal);
+}
+
+.header__logo:hover .logo-bg {
+  color: var(--bg-elevated);
+}
+
+.header__logo-text {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.header__logo-entradas {
+  color: var(--color-tierra);
+}
+
+.header__logo-jujuy {
+  color: var(--color-cielo);
+}
+
+/* Nav */
+.header__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.header__link {
+  padding: 8px 16px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  transition: all var(--duration-fast);
+  text-decoration: none;
+}
+
+.header__link:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.header__link.active {
+  color: var(--color-tierra);
+}
+
+/* Actions */
+.header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.header__user {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* Hamburger */
+.header__hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  gap: 5px;
+  cursor: pointer;
+  z-index: 10;
+  padding: 0;
+  background: none;
+  border: none;
+}
+
+.header__hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--text-primary);
+  border-radius: 2px;
+  transition: all var(--duration-normal) var(--ease-out);
+  transform-origin: center;
+}
+
+.header__hamburger.open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.header__hamburger.open span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.header__hamburger.open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* Mobile menu */
+.header__mobile-menu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 4, 2, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  z-index: 5;
+  padding: calc(var(--header-height) + var(--space-xl)) var(--space-lg) var(--space-lg);
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.header__mobile-menu.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.header__mobile-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.header__mobile-link {
+  display: block;
+  padding: 16px 20px;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  transition: background var(--duration-fast);
+  text-decoration: none;
+}
+
+.header__mobile-link:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header__nav,
+  .header__actions {
+    display: none;
+  }
+  
+  .header__hamburger {
+    display: flex;
+  }
+  
+  .header__mobile-menu {
+    display: block;
+  }
+}
