@@ -676,7 +676,7 @@ footer{background:#0a0704;border-top:1px solid var(--b1);padding:20px 16px}
 
 /* Posición mobile para las imágenes externas del slider */
 @media (max-width: 767px){
-  #ejs-4{ object-position: 60% 50% !important; }
+  #ejs-4{ object-position: center 0% !important; }
   #ejs-5{ object-position: center 55% !important; }
   #ejs-6{ object-position: 40% 40% !important; }
 }
@@ -2502,7 +2502,7 @@ function chipSel(el,cls){
 /* -- SLIDER - versión definitiva -- */
 var _si = 0; /* Índice actual en SLIDE_IDS */
 /* Nuevas imágenes primero, luego las originales */
-var SLIDE_IDS = ['ejs-4','ejs-5','ejs-6','ejs-0','ejs-1','ejs-2','ejs-3'];
+var SLIDE_IDS = ['ejs-4','ejs-6','ejs-0','ejs-1','ejs-2','ejs-3','ejs-5'];
 
 function ejGo(forzar) {
   var imgs = SLIDE_IDS.map(function(id){ return document.getElementById(id); });
