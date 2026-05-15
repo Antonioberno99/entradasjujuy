@@ -3995,49 +3995,70 @@ function startFlyerWheel(){
   }, 3600);
 }
 
+function leerCamposEvento(root){
+  var fields = root.querySelectorAll('input:not([type="file"]):not([type="hidden"]):not([type="checkbox"]), textarea, select');
+  return {
+    name:        ejText(fields[0], ''),
+    desc:        ejText(fields[1], ''),
+    category:    ejText(fields[2], 'Evento'),
+    date:        ejText(fields[3], ''),
+    time:        ejText(fields[4], '20:00'),
+    place:       ejText(fields[5], ''),
+    type:        ejText(fields[6], 'pago'),
+    capacity:    ejText(fields[7], '100'),
+    precio_base: ejText(fields[8], '0'),
+    fee:         ejText(fields[9], '0'),
+  };
+}
+
+function limpiarFormEvento(root){
+  root.querySelectorAll('input:not([type="file"]):not([type="hidden"]):not([type="checkbox"]), textarea').forEach(function(f){ f.value = ''; });
+  var flyerInp = root.querySelector('input[type="file"]');
+  if(flyerInp) flyerInp.value = '';
+}
+
+function actualizarStoreConEvento(item){
+  var store = ejLoadStore();
+  var id = String(item.id);
+  store.events   = (store.events   || []).filter(function(e){ return String(e.id) !== id; });
+  store.myEvents = (store.myEvents || []).filter(function(e){ return String(e.id) !== id; });
+  store.events.unshift(item);
+  store.myEvents.unshift(item);
+  ejSaveStore(store);
+  return store;
+}
+
 async function publicarEventoOrg(ev){
   if(ev) ev.preventDefault();
   if(!requirePublishedSession('org-publish-note')) return;
   var root = document.getElementById('org-nuevo');
-  var fields = root.querySelectorAll('input:not([type="file"]), textarea, select');
+  var payload = leerCamposEvento(root);
   var flyerInput = document.getElementById('org-flyer');
-  var flyer = await resizeImageFile(flyerInput && flyerInput.files ? flyerInput.files[0] : null);
-  var item = {
-    id: Date.now(),
-    status: 'published',
-    name: ejText(fields[0], 'Evento sin nombre'),
-    desc: ejText(fields[1], ''),
-    category: ejText(fields[2], 'Evento'),
-    date: ejText(fields[3], ''),
-    time: ejText(fields[4], ''),
-    place: ejText(fields[5], ''),
-    type: ejText(fields[6], 'pago'),
-    capacity: ejText(fields[7], ''),
-    price: fields[6] && fields[6].value === 'pago' ? ('$' + (ejText(fields[8], '0'))) : 'Gratis',
-    precio_base: ejText(fields[8], '0'),
-    fee: ejText(fields[9], '0'),
-    flyer: flyer
-  };
-  if(item.type === 'pago' && (!_mpStatus || !_mpStatus.connected)){
+  payload.flyer = await resizeImageFile(flyerInput && flyerInput.files ? flyerInput.files[0] : null);
+  if(payload.type === 'pago' && (!_mpStatus || !_mpStatus.connected)){
     showPublishNote('org-publish-note', mercadoPagoRequiredMessage());
     var mpCard = document.getElementById('mp-publish-card');
     if(mpCard) mpCard.scrollIntoView({ behavior:'smooth', block:'center' });
     return;
   }
+  var btn = root.querySelector('.btn-sub');
+  if(btn){ btn.disabled = true; btn.textContent = 'Publicando...'; }
   try{
-    var data = await apiPost('/api/productos/eventos', item);
-    item = data.data || data.evento || item;
-    var store = ejLoadStore();
-    store.events = (store.events || []).filter(function(ev){ return ev.id !== item.id; });
-    store.events.unshift(item);
-    if(!ejSaveStore(store)) return;
+    var data = await apiPost('/api/productos/eventos', payload);
+    var item = data.data || data.evento;
+    if(!item || !item.id) throw new Error('Respuesta inesperada del servidor');
+    var store = actualizarStoreConEvento(item);
+    limpiarFormEvento(root);
     renderFlyerMarketing();
     renderPublicEvents(store.events);
-    renderPublishedProjects();
-    cargarEventosPublicos();
-    showPublishNote('org-publish-note','Evento publicado. Ya queda guardado en el servidor y aparece para vender entradas.');
+    renderOrgEvents(store.myEvents);
+    actualizarSelectorRegalos(store.myEvents);
+    cargarOrganizadorStats();
+    showPublishNote('org-publish-note', 'Evento publicado. Ya aparece para vender entradas.');
   }catch(e){
     showPublishNote('org-publish-note', /Mercado Pago|seller_mp_not_connected/i.test(e.message || '') ? mercadoPagoRequiredMessage() : (e.message || 'No se pudo publicar el evento.'));
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Publicar evento'; }
   }
 }
 
@@ -4045,33 +4066,22 @@ async function guardarBorradorOrg(ev){
   if(ev) ev.preventDefault();
   if(!requirePublishedSession('org-publish-note')) return;
   var root = document.getElementById('org-nuevo');
-  var fields = root.querySelectorAll('input:not([type="file"]), textarea, select');
-  var item = {
-    id: Date.now(),
-    status:'draft',
-    name: ejText(fields[0], 'Borrador sin nombre'),
-    desc: ejText(fields[1], ''),
-    category: ejText(fields[2], 'Evento'),
-    date: ejText(fields[3], ''),
-    time: ejText(fields[4], ''),
-    place: ejText(fields[5], ''),
-    type: ejText(fields[6], 'pago'),
-    capacity: ejText(fields[7], ''),
-    price: fields[6] && fields[6].value === 'pago' ? ('$' + (ejText(fields[8], '0'))) : 'Gratis',
-    precio_base: ejText(fields[8], '0'),
-    fee: ejText(fields[9], '0')
-  };
+  var payload = leerCamposEvento(root);
+  var btn = root.querySelector('.btn-sec');
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando...'; }
   try{
-    var data = await apiPost('/api/productos/eventos/borrador', item);
-    item = data.data || data.evento || item;
-    var store = ejLoadStore();
-    store.events = (store.events || []).filter(function(ev){ return ev.id !== item.id; });
-    store.events.unshift(item);
-    if(!ejSaveStore(store)) return;
-    renderPublishedProjects();
-    showPublishNote('org-publish-note','Borrador guardado en el servidor.');
+    var data = await apiPost('/api/productos/eventos/borrador', payload);
+    var item = data.data || data.evento;
+    if(!item || !item.id) throw new Error('Respuesta inesperada del servidor');
+    var store = actualizarStoreConEvento(item);
+    limpiarFormEvento(root);
+    renderOrgEvents(store.myEvents);
+    actualizarSelectorRegalos(store.myEvents);
+    showPublishNote('org-publish-note', 'Borrador guardado. Lo encontrás en "Mis eventos".');
   }catch(e){
     showPublishNote('org-publish-note', e.message || 'No se pudo guardar el borrador.');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Guardar como borrador'; }
   }
 }
 
