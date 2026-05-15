@@ -1695,17 +1695,6 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
     <div id="org-eventos" class="is">
       <div class="fsec">
         <h2>Mis eventos</h2><p class="fsec-desc">Todos tus eventos publicados y borradores</p>
-        <div class="gift-panel" style="background:var(--bg2);border:1px solid rgba(58,111,160,.24);border-radius:var(--r);padding:14px;margin-bottom:14px">
-          <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--c);margin-bottom:8px">Cortesías</div>
-          <div style="font-family:'Fraunces',serif;font-size:19px;font-weight:700;color:var(--t1);margin-bottom:6px">Enviar entradas QR de regalo</div>
-          <p style="font-size:12px;line-height:1.45;color:var(--t3);margin:0 0 12px">Para invitados, prensa o cortesías del organizador. Descuenta stock y genera QR válido.</p>
-          <div class="fg"><label class="fl">Evento</label><select class="fi-sel" id="gift-event" onchange="actualizarTiposRegalo()"><option value="">Seleccioná un evento</option></select></div>
-          <div class="fg-row"><div class="fg"><label class="fl">Tipo de entrada</label><select class="fi-sel" id="gift-ticket"><option value="">General</option></select></div><div class="fg"><label class="fl">Cantidad</label><input class="fi" id="gift-qty" type="number" min="1" max="20" value="1"></div></div>
-          <div class="fg"><label class="fl">Nombre del invitado</label><input class="fi" id="gift-name" type="text" placeholder="Nombre y apellido"></div>
-          <div class="fg-row"><div class="fg"><label class="fl">Email</label><input class="fi" id="gift-email" type="email" placeholder="invitado@email.com"></div><div class="fg"><label class="fl">DNI opcional</label><input class="fi" id="gift-dni" type="text" inputmode="numeric" placeholder="Sin puntos"></div></div>
-          <button class="btn-sub c" id="gift-submit" onclick="enviarEntradasRegalo(event)">Generar y enviar QR</button>
-          <div class="publish-note" id="gift-note"></div>
-        </div>
         <div class="empty-state user-project" style="padding:14px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px">Cuando publiques tu primer evento, va a aparecer acá.</div>
       </div>
     </div>
@@ -2527,6 +2516,24 @@ window.addEventListener('load', function() {
      MODAL AUTH - Login / Registro
      ================================================================ -->
 <div id="auth-backdrop" onclick="cerrarAuth()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)"></div>
+
+<!-- ================================================================
+     MODAL CORTESÍAS / ENVIAR QR DE REGALO
+     ================================================================ -->
+<div id="gift-modal-backdrop" onclick="cerrarGiftModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9995"></div>
+<div id="gift-modal" role="dialog" aria-modal="true" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;padding:24px 20px max(24px,env(safe-area-inset-bottom));z-index:9996;max-width:480px;max-height:92vh;overflow-y:auto;margin:0 auto;box-shadow:0 -8px 40px rgba(0,0,0,0.2);transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.2,0.64,1);border-top:1px solid var(--b1)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:var(--t1)">Enviar QR de regalo</div>
+    <button onclick="cerrarGiftModal()" style="background:none;border:none;font-size:22px;color:var(--t3);cursor:pointer;padding:4px 8px;line-height:1">✕</button>
+  </div>
+  <div id="gift-modal-evento-nombre" style="font-size:12px;color:var(--c);margin-bottom:16px;font-weight:600"></div>
+  <select id="gift-event" style="display:none" onchange="actualizarTiposRegalo()"><option value="">Seleccioná un evento</option></select>
+  <div class="fg-row"><div class="fg"><label class="fl">Tipo de entrada</label><select class="fi-sel" id="gift-ticket"><option value="">General</option></select></div><div class="fg"><label class="fl">Cantidad</label><input class="fi" id="gift-qty" type="number" min="1" max="20" value="1"></div></div>
+  <div class="fg"><label class="fl">Nombre del invitado</label><input class="fi" id="gift-name" type="text" placeholder="Nombre y apellido"></div>
+  <div class="fg-row"><div class="fg"><label class="fl">Email</label><input class="fi" id="gift-email" type="email" placeholder="invitado@email.com"></div><div class="fg"><label class="fl">DNI (opcional)</label><input class="fi" id="gift-dni" type="text" inputmode="numeric" placeholder="Sin puntos"></div></div>
+  <button class="btn-sub c" id="gift-submit" onclick="enviarEntradasRegalo(event)" style="margin-top:4px">Generar y enviar QR</button>
+  <div class="publish-note" id="gift-note" style="margin-top:8px"></div>
+</div>
 
 <!-- ================================================================
      MODAL EDITAR EVENTO
@@ -3674,13 +3681,14 @@ async function enviarEntradasRegalo(event){
     });
     var data = await res.json().catch(function(){ return {}; });
     if(!res.ok || !data.ok) throw new Error(data.error || 'No se pudo generar la cortesía');
+    var emailOk = data.data && data.data.email_sent;
     if(note){
-      note.style.color = data.data && data.data.email_sent ? 'var(--g)' : 'var(--s)';
-      note.textContent = data.data && data.data.email_sent ? 'Entradas enviadas por email.' : 'Entradas generadas. El email no salió; el QR quedó creado y podés reenviarlo después.';
+      note.style.color = emailOk ? 'var(--g)' : 'var(--s)';
+      note.textContent = emailOk ? 'Entradas enviadas por email.' : 'Entradas generadas. El email no salió; el QR quedó creado y podés reenviarlo después.';
     }
-    ['gift-name','gift-email','gift-dni'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
     cargarMisProductos();
     cargarOrganizadorStats();
+    setTimeout(cerrarGiftModal, 1400);
   }catch(e){
     if(note){ note.style.color = '#C44040'; note.textContent = e.message || 'No se pudo generar la cortesía'; }
   }finally{
@@ -4205,15 +4213,37 @@ async function eliminarEventoOrganizador(eventId, btn){
   }
 }
 
+function abrirGiftModal(){
+  var modal = document.getElementById('gift-modal');
+  var backdrop = document.getElementById('gift-modal-backdrop');
+  if(modal){ modal.style.display = 'block'; setTimeout(function(){ modal.style.transform = 'translateY(0)'; }, 10); }
+  if(backdrop) backdrop.style.display = 'block';
+}
+
+function cerrarGiftModal(){
+  var modal = document.getElementById('gift-modal');
+  var backdrop = document.getElementById('gift-modal-backdrop');
+  if(modal){ modal.style.transform = 'translateY(100%)'; setTimeout(function(){ modal.style.display = 'none'; }, 350); }
+  if(backdrop) backdrop.style.display = 'none';
+  var note = document.getElementById('gift-note');
+  if(note) note.textContent = '';
+}
+
 function prepararRegaloEvento(eventId){
-  orgGO('org-eventos');
+  var store = ejLoadStore();
+  var ev = (store.myEvents || []).find(function(e){ return String(e.id) === String(eventId); });
   var sel = document.getElementById('gift-event');
-  if(sel){
-    sel.value = String(eventId);
-    actualizarTiposRegalo();
-  }
+  if(sel){ sel.value = String(eventId); actualizarTiposRegalo(); }
+  var nombreEl = document.getElementById('gift-modal-evento-nombre');
+  if(nombreEl) nombreEl.textContent = ev ? (ev.name || '') : '';
+  ['gift-name','gift-email','gift-dni'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
+  var qty = document.getElementById('gift-qty');
+  if(qty) qty.value = '1';
+  var note = document.getElementById('gift-note');
+  if(note) note.textContent = '';
+  abrirGiftModal();
   var name = document.getElementById('gift-name');
-  if(name) setTimeout(function(){ name.focus(); }, 80);
+  if(name) setTimeout(function(){ name.focus(); }, 380);
 }
 
 function abrirEditarEvento(){
