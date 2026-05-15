@@ -1155,14 +1155,15 @@ app.put('/api/productos/eventos/:id', requireAuth, async (req, res) => {
     );
     if (tipos.length) {
       const viejaCapacidad = Number(tipos[0].capacidad || 0);
+      const delta = capacidad - viejaCapacidad;
       await client.query(`
         UPDATE tipos_entrada SET
           precio_base = $1,
           fee_organizador = $2,
           capacidad = $3,
-          disponibles = GREATEST(0, disponibles + ($3 - $4))
+          disponibles = GREATEST(0, disponibles + $4)
         WHERE id = $5
-      `, [precioBase, fee, capacidad, viejaCapacidad, tipos[0].id]);
+      `, [precioBase, fee, capacidad, delta, tipos[0].id]);
     }
 
     await client.query('COMMIT');
@@ -1171,7 +1172,7 @@ app.put('/api/productos/eventos/:id', requireAuth, async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('[EDITAR EVENTO]', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'No pudimos guardar los cambios. Intentá de nuevo.' });
   } finally {
     client.release();
   }
