@@ -4018,25 +4018,37 @@ function renderPublicEvents(events){
   var list = document.getElementById('public-event-list');
   var agenda = document.getElementById('public-agenda');
   var empty = '<div class="empty-state" style="padding:16px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px">Todavía no hay eventos publicados.</div>';
-  var shareBtn = function(ev){ return '<button onclick="compartirEvento(&quot;'+escapeHtml(ev.id)+'&quot;,&quot;'+escapeHtml(ev.name)+'&quot;,event)" style="background:none;border:none;cursor:pointer;padding:4px 8px;color:var(--t3);font-size:11px;font-family:Outfit,sans-serif;display:flex;align-items:center;gap:4px;flex-shrink:0" title="Compartir evento"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>Compartir</button>'; };
+  var shareIco = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+  var shareBtn = function(ev){ return '<button onclick="compartirEvento(&quot;'+escapeHtml(ev.id)+'&quot;,&quot;'+escapeHtml(ev.name)+'&quot;,event)" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.18);border-radius:6px;cursor:pointer;padding:5px 8px;color:#fff;font-size:10px;font-family:Outfit,sans-serif;display:flex;align-items:center;gap:4px;flex-shrink:0;line-height:1" title="Compartir">'+shareIco+' Compartir</button>'; };
+  var shareBtnDark = function(ev){ return '<button onclick="compartirEvento(&quot;'+escapeHtml(ev.id)+'&quot;,&quot;'+escapeHtml(ev.name)+'&quot;,event)" style="background:none;border:1px solid var(--b2);border-radius:6px;cursor:pointer;padding:4px 8px;color:var(--t2);font-size:10px;font-family:Outfit,sans-serif;display:flex;align-items:center;gap:4px;flex-shrink:0;line-height:1" title="Compartir">'+shareIco+' Compartir</button>'; };
   if(featured){
     if(!events.length) featured.innerHTML = empty;
     else featured.innerHTML = events.slice(0,3).map(function(ev){
+      /* ev-fr va DENTRO de ef-cnt (z-index:10) para no quedar bajo ef-fade */
       return '<div class="evf ef-carnaval" style="min-height:140px">'+
-        '<div class="ef-geo"></div><div class="ef-fade"></div><div class="ef-cnt" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">'+
+        '<div class="ef-geo"></div><div class="ef-fade"></div>'+
+        '<div class="ef-cnt">'+
+        '<div onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)" style="flex:1;cursor:pointer">'+
         '<div class="ev-catrow"><div class="ev-cbar carnaval"></div><span class="ev-ctxt">'+escapeHtml(ev.category || 'Evento')+'</span></div>'+
         '<div class="ev-nm">'+escapeHtml(ev.name)+'</div>'+
         '<div class="ev-dt">'+escapeHtml([ev.date, ev.time, ev.place].filter(Boolean).join(' - '))+'</div>'+
         '</div>'+
-        '<div class="ev-fr" style="display:flex;align-items:center;justify-content:space-between;padding:0 12px 10px">'+
+        '<div class="ev-fr">'+
         '<span class="ev-pr '+(ev.price === 'Gratis' ? 'free' : '')+'">'+escapeHtml(ev.price || '')+'</span>'+
         '<div style="display:flex;align-items:center;gap:6px">'+shareBtn(ev)+'<button class="bev t" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button></div>'+
-        '</div></div>';
+        '</div></div></div>';
     }).join('');
   }
   if(list){
     list.innerHTML = events.slice(3).map(function(ev){
-      return '<div class="evi"><div class="evi-stripe" style="background:var(--t)"></div><div class="evi-body" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)" style="cursor:pointer"><div class="evi-cat">'+escapeHtml(ev.category || 'Evento')+'</div><div class="evi-nm">'+escapeHtml(ev.name)+'</div><div class="evi-meta">'+escapeHtml([ev.date, ev.time, ev.place].filter(Boolean).join(' - '))+'</div></div><div class="evi-r"><div class="evi-pr">'+escapeHtml(ev.price || '')+'</div><div style="display:flex;align-items:center;gap:4px">'+shareBtn(ev)+'<button class="bev t" style="font-size:10px;padding:0 12px;min-height:36px" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button></div></div></div>';
+      return '<div class="evi" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">'+
+        '<div class="evi-stripe" style="background:var(--t)"></div>'+
+        '<div class="evi-body"><div class="evi-cat">'+escapeHtml(ev.category || 'Evento')+'</div><div class="evi-nm">'+escapeHtml(ev.name)+'</div><div class="evi-meta">'+escapeHtml([ev.date, ev.time, ev.place].filter(Boolean).join(' - '))+'</div></div>'+
+        '<div class="evi-r">'+
+        '<div class="ivi-pr">'+escapeHtml(ev.price || '')+'</div>'+
+        shareBtnDark(ev)+
+        '<button class="bev t" style="font-size:10px;padding:0 12px;min-height:36px" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button>'+
+        '</div></div>';
     }).join('');
   }
   if(agenda){
