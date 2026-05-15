@@ -1858,6 +1858,17 @@ const CFG={
    NAVEGAR ENTRE PORTALES
    Bug fix: usar classList directamente
    ========================================== */
+/* ==========================================
+   PERSISTIR POSICIÓN DE NAVEGACIÓN
+   ========================================== */
+function ejSaveNav(portal, section){
+  if(section === 'compra' || section === 'exito') return;
+  try{ localStorage.setItem('ej-nav', JSON.stringify({portal:portal, section:section||''})); }catch(e){}
+}
+function ejLoadNav(){
+  try{ return JSON.parse(localStorage.getItem('ej-nav') || 'null'); }catch(e){ return null; }
+}
+
 function GO(pid){
   if(pid !== 'publico' && !requireAccount('Necesitas una cuenta para usar esta seccion.')) return;
   /* 1. Ocultar todos los portales */
@@ -1876,6 +1887,7 @@ function GO(pid){
     if(tab) tab.classList.add(cfg.cls);
   }
   window.scrollTo(0,0);
+  ejSaveNav(pid, '');
 }
 
 function irAlInicio(){
@@ -1918,6 +1930,7 @@ function GOI(pid, sid){
   portal.querySelectorAll('.is').forEach(s=>s.classList.remove('on'));
   const target=document.getElementById(pre+'-'+sid);
   if(target){target.classList.add('on');window.scrollTo(0,0);}
+  ejSaveNav(pid, sid);
 }
 
 /* ==========================================
@@ -1926,12 +1939,19 @@ function GOI(pid, sid){
 function orgGO(sid, tabEl){
   if(!requireAccount('Necesitas una cuenta para publicar y gestionar eventos.')) return;
   /* tabs */
+  const ORG_IDS=['org-resumen','org-eventos','org-nuevo','org-cobros','org-qr'];
   document.querySelectorAll('#org-tabs .itab').forEach(t=>t.classList.remove('ic'));
-  if(tabEl)tabEl.classList.add('ic');
+  if(tabEl){ tabEl.classList.add('ic'); }
+  else{
+    var idx=ORG_IDS.indexOf(sid);
+    var tabs=document.querySelectorAll('#org-tabs .itab');
+    if(tabs[idx]) tabs[idx].classList.add('ic');
+  }
   /* screens */
   document.querySelectorAll('#portal-org .is').forEach(s=>s.classList.remove('on'));
   const s=document.getElementById(sid);
   if(s){s.classList.add('on');window.scrollTo(0,0);}
+  ejSaveNav('org', sid);
 }
 
 function orgBN(bnEl, sid){
@@ -1946,6 +1966,7 @@ function orgBN(bnEl, sid){
   document.querySelectorAll('#portal-org .is').forEach(s=>s.classList.remove('on'));
   const s=document.getElementById(sid);
   if(s){s.classList.add('on');window.scrollTo(0,0);}
+  ejSaveNav('org', sid);
 }
 
 /* ==========================================
@@ -1954,16 +1975,20 @@ function orgBN(bnEl, sid){
 function artGO(sid,tabEl){
   if(sid === 'art-pub' && !requireAccount('Necesitas una cuenta para publicar tu perfil.')) return;
   document.querySelectorAll('#art-tabs .itab').forEach(t=>t.classList.remove('ip'));
-  if(tabEl)tabEl.classList.add('ip');
+  if(tabEl){ tabEl.classList.add('ip'); }
+  else{ var tabs=document.querySelectorAll('#art-tabs .itab'); ['art-lista','art-pub'].forEach(function(id,i){ if(id===sid && tabs[i]) tabs[i].classList.add('ip'); }); }
   document.querySelectorAll('#portal-artistas .is').forEach(s=>s.classList.remove('on'));
   const s=document.getElementById(sid);if(s){s.classList.add('on');window.scrollTo(0,0);}
+  ejSaveNav('artistas', sid);
 }
 function srvGO(sid,tabEl){
   if(sid === 'srv-pub' && !requireAccount('Necesitas una cuenta para publicar tu servicio.')) return;
   document.querySelectorAll('#srv-tabs .itab').forEach(t=>t.classList.remove('it'));
-  if(tabEl)tabEl.classList.add('it');
+  if(tabEl){ tabEl.classList.add('it'); }
+  else{ var tabs=document.querySelectorAll('#srv-tabs .itab'); ['srv-lista','srv-pub'].forEach(function(id,i){ if(id===sid && tabs[i]) tabs[i].classList.add('it'); }); }
   document.querySelectorAll('#portal-servicios .is').forEach(s=>s.classList.remove('on'));
   const s=document.getElementById(sid);if(s){s.classList.add('on');window.scrollTo(0,0);}
+  ejSaveNav('servicios', sid);
 }
 
 
@@ -2872,6 +2897,39 @@ async function doGoogleAuth(response){
   }
 }
 
+function ejRestoreNavAuth(){
+  var nav = ejLoadNav();
+  if(!nav || !nav.portal || nav.portal === 'publico') return;
+  var portal = nav.portal;
+  var section = nav.section || '';
+  /* activar portal sin llamar requireAccount (ya está autenticado) */
+  document.querySelectorAll('.portal').forEach(p=>p.classList.remove('on'));
+  var portalEl = document.getElementById('portal-'+portal);
+  if(portalEl) portalEl.classList.add('on');
+  document.querySelectorAll('.ptab').forEach(t=>t.classList.remove('on-t','on-c','on-p','on-tl'));
+  var cfg = CFG[portal];
+  if(cfg){ var tab=document.getElementById(cfg.id); if(tab) tab.classList.add(cfg.cls); }
+  window.scrollTo(0,0);
+  if(!section) return;
+  if(portal === 'org'){
+    var ORG_IDS=['org-resumen','org-eventos','org-nuevo','org-cobros','org-qr'];
+    var idx=ORG_IDS.indexOf(section);
+    var itabs=document.querySelectorAll('#org-tabs .itab');
+    itabs.forEach(function(t){ t.classList.remove('ic'); });
+    if(itabs[idx]) itabs[idx].classList.add('ic');
+    var bns=document.querySelectorAll('.bnav .bn');
+    bns.forEach(function(b){ b.classList.remove('on'); });
+    if(bns[idx]) bns[idx].classList.add('on');
+    document.querySelectorAll('#portal-org .is').forEach(function(s){ s.classList.remove('on'); });
+    var sc=document.getElementById(section);
+    if(sc){ sc.classList.add('on'); }
+  } else if(portal === 'artistas'){
+    artGO(section);
+  } else if(portal === 'servicios'){
+    srvGO(section);
+  }
+}
+
 function setAutenticado(u, token){
   _usuario = u;
   if(token) localStorage.setItem('ej-token', token);
@@ -2884,6 +2942,7 @@ function setAutenticado(u, token){
   syncCompradorFields();
   cargarMisProductos();
   cargarMercadoPagoStatus();
+  ejRestoreNavAuth();
 }
 
 function syncCompradorFields(){
@@ -4446,6 +4505,16 @@ document.addEventListener('DOMContentLoaded', function(){
   cargarEventosPublicos();
   cargarDirectoriosPublicos();
   startFlyerWheel();
+  /* restaurar sección pública (no necesita auth) */
+  var nav = ejLoadNav();
+  if(nav && nav.portal === 'publico' && nav.section && nav.section !== 'main' && nav.section !== 'compra' && nav.section !== 'exito'){
+    var pre = PRE['publico'];
+    var target = document.getElementById(pre + '-' + nav.section);
+    if(target){
+      document.querySelectorAll('#portal-publico .is').forEach(function(s){ s.classList.remove('on'); });
+      target.classList.add('on');
+    }
+  }
 });
 </script>
 </body>
