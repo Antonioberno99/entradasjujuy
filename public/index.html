@@ -4018,9 +4018,9 @@ async function cargarEventosPublicos(){
     if(!data.ok || !Array.isArray(data.data)) return;
     var store = ejLoadStore();
     var remote = data.data.map(eventoDesdeBackend);
-    var remoteIds = remote.map(function(ev){ return String(ev.id); });
-    var local = (store.events || []).filter(function(ev){ return remoteIds.indexOf(String(ev.id)) === -1; });
-    store.events = remote.concat(local);
+    /* El backend es fuente de verdad — reemplazar completamente store.events
+       para que eventos borrados en el backend no queden en localStorage */
+    store.events = remote;
     ejSaveStore(store);
     renderFlyerMarketing();
     renderPublicEvents(store.events);

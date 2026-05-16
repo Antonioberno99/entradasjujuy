@@ -2140,7 +2140,7 @@ async function autoMigrate(){
     console.error('[MIGRATE] Error:', err.message);
   }
   /* Limpieza one-time: eliminar evento de prueba "Gran Peña Pueblo Encanto" */
-  await borrarEventoDePrueba('gran pe%a pueblo encanto');
+  await borrarEventoDePrueba('pueblo encanto');
 }
 
 async function borrarEventoDePrueba(patron){
