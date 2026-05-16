@@ -1601,8 +1601,10 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
       <div class="tk-tp" id="ticket-row-p" style="display:none"><div><div class="tk-nm" id="ticket-name-p">Platea preferencial</div></div><div class="qty"><button class="qty-btn" onclick="QQ('p',-1)">-</button><span class="qty-n" id="q-p">0</span><button class="qty-btn" onclick="QQ('p',1)">+</button></div><div id="ticket-price-p" style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--s);flex-shrink:0">$0</div></div>
       <div class="tk-tp" id="ticket-row-v" style="display:none"><div><div class="tk-nm" id="ticket-name-v">VIP</div></div><div class="qty"><button class="qty-btn" onclick="QQ('v',-1)">-</button><span class="qty-n" id="q-v">0</span><button class="qty-btn" onclick="QQ('v',1)">+</button></div><div id="ticket-price-v" style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--s);flex-shrink:0">$0</div></div>
       <div class="compra-res">
-        <div class="cr"><span class="cr-l">Subtotal</span><span class="cr-v" id="cr-base">$0</span></div>
+        <div class="cr"><span class="cr-l">Subtotal entradas</span><span class="cr-v" id="cr-base">$0</span></div>
+        <div class="cr" id="cr-servicio-row" style="display:none"><span class="cr-l" title="Comisión de la plataforma">Servicio EntradasJujuy (10%)</span><span class="cr-v" id="cr-servicio">$0</span></div>
         <div class="cr"><span class="cr-l" style="font-weight:500;color:var(--t2)">Total a pagar</span><span class="cr-v tot" id="cr-tot">$0</span></div>
+        <div id="cr-info-servicio" style="display:none;font-size:11px;color:var(--t3);margin-top:8px;padding:8px 10px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.18);border-radius:8px;line-height:1.4">El servicio EntradasJujuy se suma sobre el valor de la entrada y nos permite mantener la plataforma. El organizador recibe íntegro el precio publicado.</div>
       </div>
       <!-- Formulario del comprador -->
       <div id="form-comprador" style="margin-top:16px;display:none">
@@ -1739,19 +1741,15 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
         <div class="fg upload-box"><label class="fl">Flyer del evento</label><input class="fi" id="org-flyer" type="file" accept="image/*"><div class="upload-hint">Este flyer se muestra en la ruleta del portal principal. Recomendado: imagen vertical, clara y con fecha visible.</div></div>
         <div class="fg-row"><div class="fg"><label class="fl">Tipo</label><select class="fi-sel" id="tipo-ev" onchange="toggleFee()"><option value="pago">Pago</option><option value="gratis">Gratuito</option><option value="reserva">Gratuito con reserva</option></select></div><div class="fg"><label class="fl">Capacidad máx.</label><input class="fi" type="number" placeholder="500"></div></div>
         <div id="precio-sec">
-          <div class="fg"><label class="fl">Precio base ($)</label><input class="fi" type="number" placeholder="3000" id="pb" oninput="calcFee()"></div>
+          <div class="fg"><label class="fl">Precio de la entrada ($)</label><input class="fi" type="number" placeholder="3000" id="pb" oninput="calcFee()"><div style="font-size:11px;color:var(--t3);margin-top:6px">Este es el monto que vas a recibir por entrada. El servicio EntradasJujuy (10%) se le suma automáticamente al comprador.</div></div>
           <div class="fg">
-            <label class="fl">Tu cargo por servicio adicional</label>
             <div class="fee-box">
-              <div class="fee-ti">Definí tu propio fee</div>
-              <div class="fee-desc">Monto extra que cobrás vos. El comprador lo ve al pagar. Podés poner $0.</div>
-              <div class="fg-row"><div class="fg" style="margin:0"><label class="fl">Fee fijo ($)</label><input class="fi" type="number" placeholder="500" id="fee" oninput="calcFee()"></div><div class="fg" style="margin:0"><label class="fl">O en %</label><input class="fi" type="number" placeholder="10" id="feep" oninput="calcFeePct()"></div></div>
+              <div class="fee-ti">Resumen de precios</div>
+              <div class="fee-desc">Así se ve el desglose para vos y para el comprador.</div>
               <div class="fee-prev">
-                <div class="fp"><span class="fp-l">Precio base</span><span class="fp-v" id="fpb">$0</span></div>
-                <div class="fp"><span class="fp-l">Tu fee</span><span class="fp-v" id="fpf">$0</span></div>
-                <div class="fp"><span class="fp-l">Total que paga el comprador</span><span class="fp-v tot" id="fpt">$0</span></div>
-                <div class="fp"><span class="fp-l">Comisión EntradasJujuy</span><span class="fp-v" style="color:var(--t3)" id="fpc">$0</span></div>
-                <div class="fp"><span class="fp-l" style="font-weight:500;color:var(--t2)">Vos recibís</span><span class="fp-v ok" id="fpr">$0</span></div>
+                <div class="fp"><span class="fp-l">Precio que pusiste (lo que recibís)</span><span class="fp-v ok" id="fpb">$0</span></div>
+                <div class="fp"><span class="fp-l">Servicio EntradasJujuy (10%)</span><span class="fp-v" style="color:var(--t3)" id="fpc">$0</span></div>
+                <div class="fp"><span class="fp-l" style="font-weight:500;color:var(--t2)">Total que paga el comprador</span><span class="fp-v tot" id="fpt">$0</span></div>
               </div>
             </div>
           </div>
@@ -2173,12 +2171,21 @@ function QQ(t,d){
   QV[t]=Math.max(0,QV[t]+d);
   document.getElementById('q-'+t).textContent=QV[t];
   const base=QV.g*PV.g+QV.p*PV.p+QV.v*PV.v;
+  /* servicio EntradasJujuy: 10% sobre el precio del organizador, lo paga el comprador */
+  const servicio = Math.round(base*0.10);
+  const total = base + servicio;
   document.getElementById('cr-base').textContent='$'+base.toLocaleString('es-AR');
-  document.getElementById('cr-tot').textContent='$'+base.toLocaleString('es-AR');
+  var srvRow = document.getElementById('cr-servicio-row');
+  var srvInfo = document.getElementById('cr-info-servicio');
+  var srvVal = document.getElementById('cr-servicio');
+  if(srvVal) srvVal.textContent='$'+servicio.toLocaleString('es-AR');
+  if(srvRow) srvRow.style.display = base > 0 ? 'flex' : 'none';
+  if(srvInfo) srvInfo.style.display = base > 0 ? 'block' : 'none';
+  document.getElementById('cr-tot').textContent='$'+total.toLocaleString('es-AR');
   // Mostrar formulario si hay al menos 1 entrada
-  const total = QV.g+QV.p+QV.v;
-  document.getElementById('form-comprador').style.display = total > 0 ? 'block' : 'none';
-  if(total > 0) syncCompradorFields();
+  const totalEntradas = QV.g+QV.p+QV.v;
+  document.getElementById('form-comprador').style.display = totalEntradas > 0 ? 'block' : 'none';
+  if(totalEntradas > 0) syncCompradorFields();
 }
 
 // ID de la orden actual - se guarda cuando se inicia el pago
@@ -2475,23 +2482,13 @@ function mostrarError(msg){
    FEE PREVIEW (solo org)
    ========================================== */
 function calcFee(){
+  /* Servicio EntradasJujuy: 10% sobre el precio base, lo paga el comprador */
   const p=parseInt(document.getElementById('pb')?.value)||0;
-  const f=parseInt(document.getElementById('fee')?.value)||0;
-  const tot=p+f,com=Math.round(tot*0.10),rec=tot-com;
-  document.getElementById('fpb').textContent='$'+p.toLocaleString('es-AR');
-  document.getElementById('fpf').textContent='$'+f.toLocaleString('es-AR');
-  document.getElementById('fpt').textContent='$'+tot.toLocaleString('es-AR');
-  document.getElementById('fpc').textContent='$'+com.toLocaleString('es-AR');
-  document.getElementById('fpr').textContent='$'+rec.toLocaleString('es-AR');
-  const fp=document.getElementById('feep');
-  if(fp&&p>0)fp.value=Math.round(f/p*100)||'';
-}
-function calcFeePct(){
-  const p=parseInt(document.getElementById('pb')?.value)||0;
-  const pct=parseInt(document.getElementById('feep')?.value)||0;
-  const fee=document.getElementById('fee');
-  if(fee)fee.value=Math.round(p*pct/100);
-  calcFee();
+  const servicio=Math.round(p*0.10);
+  const totalComprador=p+servicio;
+  const fpb=document.getElementById('fpb'); if(fpb) fpb.textContent='$'+p.toLocaleString('es-AR');
+  const fpc=document.getElementById('fpc'); if(fpc) fpc.textContent='$'+servicio.toLocaleString('es-AR');
+  const fpt=document.getElementById('fpt'); if(fpt) fpt.textContent='$'+totalComprador.toLocaleString('es-AR');
 }
 function toggleFee(){
   const t=document.getElementById('tipo-ev')?.value;
@@ -2601,8 +2598,8 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="fg"><label class="fl">Capacidad máx.</label><input class="fi" id="edit-capacidad" type="number" placeholder="500"></div>
   </div>
   <div id="edit-precio-sec">
-    <div class="fg"><label class="fl">Precio base ($)</label><input class="fi" id="edit-precio" type="number" placeholder="3000"></div>
-    <div class="fg"><label class="fl">Tu cargo por servicio ($)</label><input class="fi" id="edit-fee" type="number" placeholder="0"></div>
+    <div class="fg"><label class="fl">Precio de la entrada ($)</label><input class="fi" id="edit-precio" type="number" placeholder="3000"><div style="font-size:11px;color:var(--t3);margin-top:6px">Este es el monto que vas a recibir por entrada. El servicio EntradasJujuy (10%) se le suma automáticamente al comprador.</div></div>
+    <input type="hidden" id="edit-fee" value="0">
   </div>
   <div class="fg" style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
     <input type="checkbox" id="edit-activo" style="width:18px;height:18px;accent-color:var(--s);flex-shrink:0">
@@ -4168,7 +4165,7 @@ function leerCamposEvento(root){
     type:        ejText(fields[6], 'pago'),
     capacity:    ejText(fields[7], '100'),
     precio_base: ejText(fields[8], '0'),
-    fee:         ejText(fields[9], '0'),
+    fee:         '0', /* fee del organizador eliminado; servicio EJ se calcula en backend */
   };
 }
 

@@ -973,7 +973,8 @@ async function createOrSaveEvent(req, res, activo) {
   const tipoEvento = String(body.type || body.tipo || 'pago').trim();
   const esGratis = tipoEvento === 'gratis' || tipoEvento === 'reserva';
   const precioBase = esGratis ? 0 : parseMoney(body.precio_base || body.price);
-  const fee = esGratis ? 0 : parseMoney(body.fee || body.fee_organizador);
+  /* El organizador ya no agrega un fee. La comision (10%) se le cobra al comprador como servicio. */
+  const fee = 0;
 
   if (!nombre) return res.status(400).json({ ok: false, error: 'El evento necesita nombre' });
   if (!fecha) return res.status(400).json({ ok: false, error: 'El evento necesita fecha' });
@@ -1108,7 +1109,8 @@ app.put('/api/productos/eventos/:id', requireAuth, async (req, res) => {
   const tipoEvento = String(body.type || body.tipo || 'pago').trim();
   const esGratis = tipoEvento === 'gratis' || tipoEvento === 'reserva';
   const precioBase = esGratis ? 0 : parseMoney(body.precio_base || body.price);
-  const fee = esGratis ? 0 : parseMoney(body.fee || body.fee_organizador);
+  /* El organizador ya no agrega un fee. La comision (10%) se le cobra al comprador como servicio. */
+  const fee = 0;
   const activo = body.activo === true || body.activo === 'true';
 
   if (!nombre) return res.status(400).json({ ok: false, error: 'El evento necesita nombre' });
@@ -1272,7 +1274,7 @@ app.get('/api/organizador/stats', requireAuth, async (req, res) => {
         SELECT e.id AS evento_id,
                COALESCE(SUM(CASE WHEN o.estado = 'pagada' THEN oi.cantidad ELSE 0 END), 0)::int AS vendidas,
                COALESCE(SUM(CASE WHEN o.estado = 'cortesia' THEN oi.cantidad ELSE 0 END), 0)::int AS cortesias,
-               COALESCE(SUM(CASE WHEN o.estado = 'pagada' THEN oi.cantidad * (oi.precio_unitario + oi.fee_unitario) ELSE 0 END), 0)::numeric AS ingresos
+               COALESCE(SUM(CASE WHEN o.estado = 'pagada' THEN oi.cantidad * oi.precio_unitario ELSE 0 END), 0)::numeric AS ingresos
         FROM my_events e
         LEFT JOIN ordenes o ON o.evento_id = e.id AND o.estado IN ('pagada', 'cortesia')
         LEFT JOIN orden_items oi ON oi.orden_id = o.id
@@ -1305,7 +1307,7 @@ app.get('/api/organizador/stats', requireAuth, async (req, res) => {
       sales AS (
         SELECT o.fecha_pago::date AS day,
                SUM(oi.cantidad)::int AS entradas,
-               SUM(oi.cantidad * (oi.precio_unitario + oi.fee_unitario))::numeric AS ingresos
+               SUM(oi.cantidad * oi.precio_unitario)::numeric AS ingresos
         FROM ordenes o
         JOIN eventos e ON e.id = o.evento_id
         JOIN orden_items oi ON oi.orden_id = o.id
@@ -1327,7 +1329,7 @@ app.get('/api/organizador/stats', requireAuth, async (req, res) => {
         SELECT e.id AS evento_id,
                COALESCE(SUM(CASE WHEN o.estado = 'pagada' THEN oi.cantidad ELSE 0 END), 0)::int AS vendidas,
                COALESCE(SUM(CASE WHEN o.estado = 'cortesia' THEN oi.cantidad ELSE 0 END), 0)::int AS cortesias,
-               COALESCE(SUM(CASE WHEN o.estado = 'pagada' THEN oi.cantidad * (oi.precio_unitario + oi.fee_unitario) ELSE 0 END), 0)::numeric AS ingresos
+               COALESCE(SUM(CASE WHEN o.estado = 'pagada' THEN oi.cantidad * oi.precio_unitario ELSE 0 END), 0)::numeric AS ingresos
         FROM eventos e
         LEFT JOIN ordenes o ON o.evento_id = e.id AND o.estado IN ('pagada', 'cortesia')
         LEFT JOIN orden_items oi ON oi.orden_id = o.id
@@ -1579,11 +1581,16 @@ app.post('/api/compra/iniciar', requireAuth, async (req, res) => {
       if (tipo.disponibles < item.cantidad)
         return res.status(400).json({ ok: false, error: `Sin stock para "${tipo.nombre}"` });
  
-      const precioTotal = parseFloat(tipo.precio_base) + parseFloat(tipo.fee_organizador);
-      mpItems.push({ id: tipo.id, title: tipo.nombre, quantity: item.cantidad, unit_price: precioTotal, currency_id: 'ARS' });
-      itemsData.push({ ...item, _tipo: tipo, _precioTotal: precioTotal });
+      /* precio del organizador (lo que recibe por entrada) */
+      const precioOrg = parseFloat(tipo.precio_base) + parseFloat(tipo.fee_organizador);
+      /* servicio EntradasJujuy (10% sobre el precio del organizador, lo paga el comprador) */
+      const servicioFee = Math.round(precioOrg * (MP_MARKETPLACE_FEE_PERCENT / 100) * 100) / 100;
+      /* lo que paga el comprador por entrada */
+      const precioConServicio = Math.round((precioOrg + servicioFee) * 100) / 100;
+      mpItems.push({ id: tipo.id, title: tipo.nombre, quantity: item.cantidad, unit_price: precioConServicio, currency_id: 'ARS' });
+      itemsData.push({ ...item, _tipo: tipo, _precioOrg: precioOrg, _servicioFee: servicioFee, _precioConServicio: precioConServicio });
     }
- 
+
     if (!mpItems.length) return res.status(400).json({ ok: false, error: 'Sin items válidos' });
 
     const seller = await getMercadoPagoSellerForEvent(evento_id);
@@ -1594,8 +1601,10 @@ app.post('/api/compra/iniciar', requireAuth, async (req, res) => {
         error: 'El organizador todavia no conecto Mercado Pago. No podemos cobrar este evento.',
       });
     }
-    const grossTotal = itemsData.reduce((sum, it) => sum + (it._precioTotal * it.cantidad), 0);
-    const marketplaceFee = Math.max(0, Math.round(grossTotal * (MP_MARKETPLACE_FEE_PERCENT / 100) * 100) / 100);
+    /* grossTotal = total que paga el comprador (incluye servicio) */
+    const grossTotal = itemsData.reduce((sum, it) => sum + (it._precioConServicio * it.cantidad), 0);
+    /* marketplaceFee = lo que se queda EntradasJujuy (suma de servicios) */
+    const marketplaceFee = Math.max(0, Math.round(itemsData.reduce((sum, it) => sum + (it._servicioFee * it.cantidad), 0) * 100) / 100);
  
     // Crear orden en DB
     const ordenId = uuid();
@@ -1604,9 +1613,11 @@ app.post('/api/compra/iniciar', requireAuth, async (req, res) => {
       [ordenId, evento_id, compradorFinal.email, compradorFinal.nombre, compradorFinal.dni || '']
     );
     for (const it of itemsData) {
+      /* precio_unitario = lo que recibe el organizador por entrada
+         fee_unitario   = servicio EntradasJujuy (10%, lo paga el comprador) */
       await db.query(
         'INSERT INTO orden_items (orden_id, tipo_entrada_id, cantidad, precio_unitario, fee_unitario) VALUES ($1,$2,$3,$4,$5)',
-        [ordenId, it.tipo_entrada_id, it.cantidad, parseFloat(it._tipo.precio_base), parseFloat(it._tipo.fee_organizador)]
+        [ordenId, it.tipo_entrada_id, it.cantidad, it._precioOrg, it._servicioFee]
       );
     }
  
