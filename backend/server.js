@@ -929,7 +929,7 @@ async function getEventWithTickets(eventId) {
       COALESCE(json_agg(json_build_object(
         'id', t.id, 'nombre', t.nombre,
         'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-        'precio_total', t.precio_base + t.fee_organizador, 'disponibles', t.disponibles
+        'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles
       ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
     FROM eventos e
     LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -1223,7 +1223,7 @@ app.get('/api/productos/mios', requireAuth, async (req, res) => {
         COALESCE(json_agg(json_build_object(
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-          'precio_total', t.precio_base + t.fee_organizador, 'disponibles', t.disponibles
+          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles
         ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -1509,7 +1509,7 @@ app.get('/api/eventos', async (req, res) => {
         COALESCE(json_agg(json_build_object(
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-          'precio_total', t.precio_base + t.fee_organizador, 'disponibles', t.disponibles
+          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles
         ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -1531,7 +1531,7 @@ app.get('/api/eventos/:id', async (req, res) => {
         COALESCE(json_agg(json_build_object(
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-          'precio_total', t.precio_base + t.fee_organizador, 'disponibles', t.disponibles
+          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles
         ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id

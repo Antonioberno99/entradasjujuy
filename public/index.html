@@ -4039,8 +4039,32 @@ function compartirEvento(id, nombre, e){
   }).catch(function(){ prompt('Copiá este link:', url); });
 }
 
+function calcVendidasEvento(ev){
+  if(!ev || !Array.isArray(ev.tipos_entrada)) return 0;
+  return ev.tipos_entrada.reduce(function(sum, t){
+    var cap = Number(t.capacidad || 0);
+    var disp = Number(t.disponibles || 0);
+    return sum + Math.max(0, cap - disp);
+  }, 0);
+}
+
 function renderPublicEvents(events){
   events = (events || []).filter(function(ev){ return ev.status !== 'draft'; });
+  /* Orden por fecha ascendente (más cercano primero) */
+  var porFecha = events.slice().sort(function(a, b){
+    var da = String(a.date || '9999-12-31');
+    var db = String(b.date || '9999-12-31');
+    if(da !== db) return da.localeCompare(db);
+    return String(a.time || '').localeCompare(String(b.time || ''));
+  });
+  /* Orden por más vendidos (destacados) */
+  var porVentas = events.slice().sort(function(a, b){
+    var va = calcVendidasEvento(a);
+    var vb = calcVendidasEvento(b);
+    if(vb !== va) return vb - va; /* más vendidos primero */
+    /* desempate por fecha más cercana */
+    return String(a.date || '9999-12-31').localeCompare(String(b.date || '9999-12-31'));
+  });
   var featured = document.getElementById('public-featured-events');
   var list = document.getElementById('public-event-list');
   var agenda = document.getElementById('public-agenda');
@@ -4050,7 +4074,7 @@ function renderPublicEvents(events){
   var shareBtnDark = function(ev){ return '<button onclick="compartirEvento(&quot;'+escapeHtml(ev.id)+'&quot;,&quot;'+escapeHtml(ev.name)+'&quot;,event)" style="background:none;border:1px solid var(--b2);border-radius:6px;cursor:pointer;padding:4px 8px;color:var(--t2);font-size:10px;font-family:Outfit,sans-serif;display:flex;align-items:center;gap:4px;flex-shrink:0;line-height:1" title="Compartir">'+shareIco+' Compartir</button>'; };
   if(featured){
     if(!events.length) featured.innerHTML = empty;
-    else featured.innerHTML = events.slice(0,3).map(function(ev){
+    else featured.innerHTML = porVentas.slice(0,3).map(function(ev){
       /* ev-fr va DENTRO de ef-cnt (z-index:10) para no quedar bajo ef-fade */
       return '<div class="evf ef-carnaval" style="min-height:140px">'+
         '<div class="ef-geo"></div><div class="ef-fade"></div>'+
@@ -4067,7 +4091,10 @@ function renderPublicEvents(events){
     }).join('');
   }
   if(list){
-    list.innerHTML = events.slice(3).map(function(ev){
+    /* la lista muestra los eventos no destacados, ordenados por fecha */
+    var idsDestacados = porVentas.slice(0,3).map(function(e){ return String(e.id); });
+    var restantes = porFecha.filter(function(e){ return idsDestacados.indexOf(String(e.id)) === -1; });
+    list.innerHTML = restantes.map(function(ev){
       return '<div class="evi" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">'+
         '<div class="evi-stripe" style="background:var(--t)"></div>'+
         '<div class="evi-body"><div class="evi-cat">'+escapeHtml(ev.category || 'Evento')+'</div><div class="evi-nm">'+escapeHtml(ev.name)+'</div><div class="evi-meta">'+escapeHtml([formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' - '))+'</div></div>'+
@@ -4080,7 +4107,7 @@ function renderPublicEvents(events){
   }
   if(agenda){
     if(!events.length) agenda.innerHTML = '<div class="empty-state" style="padding:16px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px">La agenda se completa automaticamente con eventos publicados.</div>';
-    else agenda.innerHTML = events.slice(0,8).map(function(ev){
+    else agenda.innerHTML = porFecha.slice(0,8).map(function(ev){
       var parts = String(ev.date || '').split('-');
       var day = parts[2] || '--';
       var mon = parts[1] || '--';
