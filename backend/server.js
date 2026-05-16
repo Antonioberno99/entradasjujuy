@@ -2139,6 +2139,40 @@ async function autoMigrate(){
   } catch(err){
     console.error('[MIGRATE] Error:', err.message);
   }
+  /* Limpieza one-time: eliminar evento de prueba "Gran Peña Pueblo Encanto" */
+  await borrarEventoDePrueba('gran pe%a pueblo encanto');
+}
+
+async function borrarEventoDePrueba(patron){
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: ev } = await client.query(
+      `SELECT id, nombre FROM eventos WHERE LOWER(nombre) ILIKE $1`,
+      [`%${patron}%`]
+    );
+    if (!ev.length) { await client.query('ROLLBACK'); return; }
+    const evIds = ev.map(r => r.id);
+    const { rows: ord } = await client.query(
+      'SELECT id FROM ordenes WHERE evento_id = ANY($1::uuid[])',
+      [evIds]
+    );
+    const ordIds = ord.map(r => r.id);
+    if (ordIds.length) {
+      await client.query('DELETE FROM entradas WHERE orden_id = ANY($1::uuid[])', [ordIds]);
+      await client.query('DELETE FROM orden_items WHERE orden_id = ANY($1::uuid[])', [ordIds]);
+      await client.query('DELETE FROM ordenes WHERE id = ANY($1::uuid[])', [ordIds]);
+    }
+    await client.query('DELETE FROM tipos_entrada WHERE evento_id = ANY($1::uuid[])', [evIds]);
+    await client.query('DELETE FROM eventos WHERE id = ANY($1::uuid[])', [evIds]);
+    await client.query('COMMIT');
+    console.log(`[CLEANUP] Borrados ${ev.length} eventos de prueba: ${ev.map(e=>e.nombre).join(', ')}`);
+  } catch(err){
+    await client.query('ROLLBACK').catch(()=>{});
+    console.error('[CLEANUP] Error:', err.message);
+  } finally {
+    client.release();
+  }
 }
 
 const PORT = process.env.PORT || 3001;
