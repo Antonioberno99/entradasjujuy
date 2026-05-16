@@ -1733,24 +1733,29 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
           <div class="mp-desc" id="mp-publish-desc">Conectá la cuenta donde querés cobrar. Los compradores pagan directo a tu Mercado Pago.</div>
           <button class="bcta c" id="mp-publish-connect-btn" style="width:100%;height:42px" onclick="conectarMercadoPago()">Conectar Mercado Pago</button>
         </div>
-        <div class="fg"><label class="fl">Nombre del evento</label><input class="fi" type="text" placeholder="Ej: Gran Peña de Carnaval 2025"></div>
-        <div class="fg"><label class="fl">Descripción</label><textarea class="fi-area" placeholder="Artistas, actividades, qué incluye..."></textarea></div>
-        <div class="fg"><label class="fl">Categoría</label><select class="fi-sel"><option>Carnaval</option><option>Folklore</option><option>Recital</option><option>Teatro</option><option>Festival de coplas</option><option>Arte</option><option>Deportes</option><option>Ritual tradicional</option><option>Otro</option></select></div>
-        <div class="fg-row"><div class="fg"><label class="fl">Fecha</label><input class="fi" type="date"></div><div class="fg"><label class="fl">Hora</label><input class="fi" type="time" value="20:00"></div></div>
-        <div class="fg"><label class="fl">Lugar</label><input class="fi" type="text" placeholder="Ej: Teatro Mitre, San Salvador"></div>
+        <div class="fg"><label class="fl">Nombre del evento</label><input class="fi" id="org-nombre" type="text" placeholder="Ej: Gran Peña de Carnaval 2025"></div>
+        <div class="fg"><label class="fl">Descripción</label><textarea class="fi-area" id="org-desc" placeholder="Artistas, actividades, qué incluye..."></textarea></div>
+        <div class="fg"><label class="fl">Categoría</label><select class="fi-sel" id="org-categoria"><option>Carnaval</option><option>Folklore</option><option>Recital</option><option>Teatro</option><option>Festival de coplas</option><option>Arte</option><option>Deportes</option><option>Ritual tradicional</option><option>Otro</option></select></div>
+        <div class="fg-row"><div class="fg"><label class="fl">Fecha</label><input class="fi" id="org-fecha" type="date"></div><div class="fg"><label class="fl">Hora</label><input class="fi" id="org-hora" type="time" value="20:00"></div></div>
+        <div class="fg"><label class="fl">Lugar</label><input class="fi" id="org-lugar" type="text" placeholder="Ej: Teatro Mitre, San Salvador"></div>
         <div class="fg upload-box"><label class="fl">Flyer del evento</label><input class="fi" id="org-flyer" type="file" accept="image/*"><div class="upload-hint">Este flyer se muestra en la ruleta del portal principal. Recomendado: imagen vertical, clara y con fecha visible.</div></div>
-        <div class="fg-row"><div class="fg"><label class="fl">Tipo</label><select class="fi-sel" id="tipo-ev" onchange="toggleFee()"><option value="pago">Pago</option><option value="gratis">Gratuito</option><option value="reserva">Gratuito con reserva</option></select></div><div class="fg"><label class="fl">Capacidad máx.</label><input class="fi" type="number" placeholder="500"></div></div>
+        <div class="fg"><label class="fl">Tipo de evento</label><select class="fi-sel" id="tipo-ev" onchange="toggleFee()"><option value="pago">Pago</option><option value="gratis">Gratuito</option><option value="reserva">Gratuito con reserva</option></select></div>
+        <input type="hidden" id="capacidad-total-legacy" value="100">
+        <input type="hidden" id="pb" value="0">
         <div id="precio-sec">
-          <div class="fg"><label class="fl">Precio de la entrada ($)</label><input class="fi" type="number" placeholder="3000" id="pb" oninput="calcFee()"><div style="font-size:11px;color:var(--t3);margin-top:6px">Este es el monto que vas a recibir por entrada. El servicio EntradasJujuy (10%) se le suma automáticamente al comprador.</div></div>
-          <div class="fg">
-            <div class="fee-box">
-              <div class="fee-ti">Resumen de precios</div>
-              <div class="fee-desc">Así se ve el desglose para vos y para el comprador.</div>
-              <div class="fee-prev">
-                <div class="fp"><span class="fp-l">Precio que pusiste (lo que recibís)</span><span class="fp-v ok" id="fpb">$0</span></div>
-                <div class="fp"><span class="fp-l">Servicio EntradasJujuy (10%)</span><span class="fp-v" style="color:var(--t3)" id="fpc">$0</span></div>
-                <div class="fp"><span class="fp-l" style="font-weight:500;color:var(--t2)">Total que paga el comprador</span><span class="fp-v tot" id="fpt">$0</span></div>
-              </div>
+          <div class="fg" style="margin-bottom:4px">
+            <label class="fl">Tipos de entrada</label>
+            <div style="font-size:11px;color:var(--t3);margin-top:2px;line-height:1.4">Podés crear hasta 5 tipos (General, VIP, Early Bird, etc). Cada uno con su precio, capacidad, tope de horario y promos si querés.</div>
+          </div>
+          <div id="tipos-entrada-container"></div>
+          <button type="button" id="btn-agregar-tipo" onclick="agregarTipoEntrada()" style="width:100%;height:42px;border:1px dashed var(--b2);border-radius:10px;background:none;color:var(--t);font-size:13px;cursor:pointer;font-family:Outfit,sans-serif;margin-bottom:14px">+ Agregar otro tipo de entrada</button>
+          <div class="fee-box" id="precio-resumen-box">
+            <div class="fee-ti">Resumen para el comprador</div>
+            <div class="fee-desc" style="margin-bottom:8px">EntradasJujuy le suma 10% al precio publicado. El organizador recibe íntegro el monto que puso.</div>
+            <div class="fee-prev">
+              <div class="fp"><span class="fp-l">Total que recibís (por entrada base)</span><span class="fp-v ok" id="fpb">$0</span></div>
+              <div class="fp"><span class="fp-l">Servicio EntradasJujuy (10%)</span><span class="fp-v" style="color:var(--t3)" id="fpc">$0</span></div>
+              <div class="fp"><span class="fp-l" style="font-weight:500;color:var(--t2)">Total que paga el comprador</span><span class="fp-v tot" id="fpt">$0</span></div>
             </div>
           </div>
         </div>
@@ -2593,13 +2598,20 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="fg"><label class="fl">Categoría</label><select class="fi-sel" id="edit-categoria"><option>Carnaval</option><option>Folklore</option><option>Recital</option><option>Teatro</option><option>Festival de coplas</option><option>Arte</option><option>Deportes</option><option>Ritual tradicional</option><option>Otro</option></select></div>
   <div class="fg-row"><div class="fg"><label class="fl">Fecha</label><input class="fi" id="edit-fecha" type="date"></div><div class="fg"><label class="fl">Hora</label><input class="fi" id="edit-hora" type="time"></div></div>
   <div class="fg"><label class="fl">Lugar</label><input class="fi" id="edit-lugar" type="text" placeholder="Lugar del evento"></div>
-  <div class="fg-row">
-    <div class="fg"><label class="fl">Tipo</label><select class="fi-sel" id="edit-tipo" onchange="editToggleFee()"><option value="pago">Pago</option><option value="gratis">Gratuito</option><option value="reserva">Gratuito con reserva</option></select></div>
-    <div class="fg"><label class="fl">Capacidad máx.</label><input class="fi" id="edit-capacidad" type="number" placeholder="500"></div>
+  <div class="fg">
+    <label class="fl">Tipo de evento</label>
+    <select class="fi-sel" id="edit-tipo" onchange="editToggleFee()"><option value="pago">Pago</option><option value="gratis">Gratuito</option><option value="reserva">Gratuito con reserva</option></select>
   </div>
+  <input type="hidden" id="edit-capacidad" value="100">
+  <input type="hidden" id="edit-precio" value="0">
+  <input type="hidden" id="edit-fee" value="0">
   <div id="edit-precio-sec">
-    <div class="fg"><label class="fl">Precio de la entrada ($)</label><input class="fi" id="edit-precio" type="number" placeholder="3000"><div style="font-size:11px;color:var(--t3);margin-top:6px">Este es el monto que vas a recibir por entrada. El servicio EntradasJujuy (10%) se le suma automáticamente al comprador.</div></div>
-    <input type="hidden" id="edit-fee" value="0">
+    <div class="fg" style="margin-bottom:4px">
+      <label class="fl">Tipos de entrada</label>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px;line-height:1.4">Editá los tipos existentes o agregá nuevos. Los que ya tienen ventas no se pueden eliminar.</div>
+    </div>
+    <div id="edit-tipos-container"></div>
+    <button type="button" onclick="agregarTipoEntradaEdit()" style="width:100%;height:42px;border:1px dashed var(--b2);border-radius:10px;background:none;color:var(--t);font-size:13px;cursor:pointer;font-family:Outfit,sans-serif;margin-bottom:12px">+ Agregar otro tipo de entrada</button>
   </div>
   <div class="fg" style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
     <input type="checkbox" id="edit-activo" style="width:18px;height:18px;accent-color:var(--s);flex-shrink:0">
@@ -3939,9 +3951,16 @@ function prepararCompraEvento(ev){
   TIPOS_COMPRA.g = tipos[0] ? tipos[0].id : '';
   TIPOS_COMPRA.p = tipos[1] ? tipos[1].id : '';
   TIPOS_COMPRA.v = tipos[2] ? tipos[2].id : '';
-  PV.g = tipos[0] ? Number(tipos[0].precio_total || tipos[0].precio_base || 0) : 0;
-  PV.p = tipos[1] ? Number(tipos[1].precio_total || tipos[1].precio_base || 0) : 0;
-  PV.v = tipos[2] ? Number(tipos[2].precio_total || tipos[2].precio_base || 0) : 0;
+  /* precio efectivo por "unidad de compra": si hay promo, paga base * promo_paga */
+  var calcPrecioUnidad = function(t){
+    if(!t) return 0;
+    var base = Number(t.precio_total || t.precio_base || 0);
+    var promo = t.promo_paga > 0 && t.promo_recibe > t.promo_paga;
+    return promo ? base * t.promo_paga : base;
+  };
+  PV.g = calcPrecioUnidad(tipos[0]);
+  PV.p = calcPrecioUnidad(tipos[1]);
+  PV.v = calcPrecioUnidad(tipos[2]);
   actualizarVistaCompra(ev);
   QQ('g',0);
   QQ('p',0);
@@ -3972,10 +3991,24 @@ function actualizarVistaCompra(ev){
     var name = document.getElementById('ticket-name-' + key);
     var price = document.getElementById('ticket-price-' + key);
     if(row) row.style.display = tipo ? 'flex' : 'none';
-    if(name && tipo) name.textContent = tipo.nombre || 'General';
-    if(price && tipo){
-      var total = Number(tipo.precio_total || tipo.precio_base || 0);
-      price.textContent = total > 0 ? '$' + Math.round(total).toLocaleString('es-AR') : 'Gratis';
+    if(tipo){
+      /* Construir texto descriptivo del tipo */
+      var nombreTipo = tipo.nombre || 'General';
+      var promoActiva = tipo.promo_paga > 0 && tipo.promo_recibe > tipo.promo_paga;
+      var precioBaseUnit = Number(tipo.precio_total || tipo.precio_base || 0);
+      var precioMostrar = promoActiva ? (precioBaseUnit * tipo.promo_paga) : precioBaseUnit;
+      var detalles = [];
+      if(promoActiva) detalles.push('Pack '+tipo.promo_recibe+' QR x '+tipo.promo_paga+' entradas');
+      if(tipo.hora_limite) detalles.push('Válido hasta '+String(tipo.hora_limite).slice(0,5));
+      if(name){
+        name.innerHTML = escapeHtml(nombreTipo) +
+          (detalles.length ? '<div style="font-size:11px;color:var(--t3);font-weight:300;margin-top:2px;line-height:1.3">'+detalles.map(escapeHtml).join(' · ')+'</div>' : '');
+      }
+      if(price){
+        price.textContent = precioMostrar > 0 ? '$' + Math.round(precioMostrar).toLocaleString('es-AR') : 'Gratis';
+      }
+      /* Actualizamos el precio efectivo (por unidad de compra) en PV para QQ */
+      PV[key] = precioMostrar;
     }
   });
 }
@@ -4154,25 +4187,169 @@ function startFlyerWheel(){
 }
 
 function leerCamposEvento(root){
-  var fields = root.querySelectorAll('input:not([type="file"]):not([type="hidden"]):not([type="checkbox"]), textarea, select');
+  /* Lectura por ID, no por orden. tipos_entrada se arma desde la UI dinamica. */
+  var g = function(id, def){ var el = document.getElementById(id); return el ? String(el.value || '').trim() : (def || ''); };
+  var tipos = leerTiposEntradaForm();
   return {
-    name:        ejText(fields[0], ''),
-    desc:        ejText(fields[1], ''),
-    category:    ejText(fields[2], 'Evento'),
-    date:        ejText(fields[3], ''),
-    time:        ejText(fields[4], '20:00'),
-    place:       ejText(fields[5], ''),
-    type:        ejText(fields[6], 'pago'),
-    capacity:    ejText(fields[7], '100'),
-    precio_base: ejText(fields[8], '0'),
-    fee:         '0', /* fee del organizador eliminado; servicio EJ se calcula en backend */
+    name:        g('org-nombre', ''),
+    desc:        g('org-desc', ''),
+    category:    g('org-categoria', 'Evento'),
+    date:        g('org-fecha', ''),
+    time:        g('org-hora', '20:00') || '20:00',
+    place:       g('org-lugar', ''),
+    type:        g('tipo-ev', 'pago'),
+    capacity:    String(tipos.reduce(function(s,t){ return s + (parseInt(t.capacidad||0,10)||0); }, 0) || 100),
+    precio_base: String(tipos[0] ? (tipos[0].precio_base || 0) : 0),
+    fee:         '0',
+    tipos_entrada: tipos,
   };
+}
+
+/* ============= UI DINAMICA DE TIPOS DE ENTRADA ============= */
+function leerTiposEntradaForm(){
+  var rows = document.querySelectorAll('#tipos-entrada-container .tipo-entrada-row');
+  var result = [];
+  rows.forEach(function(row){
+    var get = function(name){ var el = row.querySelector('[data-field="'+name+'"]'); return el ? String(el.value || '').trim() : ''; };
+    var nombre = get('nombre') || 'General';
+    var precio = parseInt(get('precio')||'0', 10) || 0;
+    var capacidad = parseInt(get('capacidad')||'100', 10) || 100;
+    var horaLimite = get('hora_limite') || '';
+    var promoPaga = parseInt(get('promo_paga')||'0', 10) || 0;
+    var promoRecibe = parseInt(get('promo_recibe')||'0', 10) || 0;
+    result.push({
+      nombre: nombre,
+      precio_base: precio,
+      capacidad: capacidad,
+      hora_limite: horaLimite,
+      promo_paga: promoPaga,
+      promo_recibe: promoRecibe,
+    });
+  });
+  return result;
+}
+
+function renderTipoEntradaRow(data, isFirst){
+  data = data || {};
+  var idx = document.querySelectorAll('#tipos-entrada-container .tipo-entrada-row').length;
+  var row = document.createElement('div');
+  row.className = 'tipo-entrada-row';
+  row.style.cssText = 'border:1px solid var(--b1);border-radius:12px;padding:14px;margin-bottom:10px;background:rgba(255,255,255,.02)';
+  row.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+      '<div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--t)">Tipo #'+(idx+1)+'</div>'+
+      (isFirst ? '' : '<button type="button" onclick="this.closest(\'.tipo-entrada-row\').remove();actualizarResumenTipos()" style="background:none;border:none;color:#C44040;font-size:11px;cursor:pointer;font-family:Outfit,sans-serif;padding:4px 8px">Quitar</button>')+
+    '</div>'+
+    '<div class="fg" style="margin-bottom:8px"><label class="fl">Nombre</label><input class="fi" data-field="nombre" type="text" placeholder="General, VIP, Early Bird, Platea..." value="'+escapeHtml(data.nombre || (isFirst ? 'General' : ''))+'"></div>'+
+    '<div class="fg-row" style="margin-bottom:8px">'+
+      '<div class="fg" style="margin:0"><label class="fl">Precio ($)</label><input class="fi" data-field="precio" type="number" placeholder="3000" value="'+(data.precio_base || '')+'" oninput="actualizarResumenTipos()"></div>'+
+      '<div class="fg" style="margin:0"><label class="fl">Capacidad</label><input class="fi" data-field="capacidad" type="number" placeholder="100" value="'+(data.capacidad || '')+'"></div>'+
+    '</div>'+
+    '<details style="margin-top:6px"><summary style="font-size:11px;color:var(--t3);cursor:pointer;padding:4px 0;user-select:none">Opciones avanzadas (horario y promos)</summary>'+
+      '<div style="padding-top:10px">'+
+        '<div class="fg" style="margin-bottom:8px"><label class="fl">Hora límite del QR <span style="color:var(--t3);font-weight:300">(opcional)</span></label><input class="fi" data-field="hora_limite" type="time" value="'+escapeHtml(data.hora_limite || '')+'"><div style="font-size:11px;color:var(--t3);margin-top:4px">Ej: 23:00. El QR no se podrá escanear después de esa hora (útil para early bird).</div></div>'+
+        '<div class="fg-row" style="margin:0"><div class="fg" style="margin:0"><label class="fl">Promo: paga</label><input class="fi" data-field="promo_paga" type="number" placeholder="0" value="'+(data.promo_paga || '')+'"></div><div class="fg" style="margin:0"><label class="fl">y recibe</label><input class="fi" data-field="promo_recibe" type="number" placeholder="0" value="'+(data.promo_recibe || '')+'"></div></div>'+
+        '<div style="font-size:11px;color:var(--t3);margin-top:6px;line-height:1.4">Ej: paga 3 y recibe 4 → el comprador paga 3 entradas y el sistema le manda 4 QRs. Dejá ambos en 0 para venta normal.</div>'+
+      '</div>'+
+    '</details>';
+  document.getElementById('tipos-entrada-container').appendChild(row);
+}
+
+function agregarTipoEntrada(data){
+  var container = document.getElementById('tipos-entrada-container');
+  if(!container) return;
+  var existentes = container.querySelectorAll('.tipo-entrada-row').length;
+  if(existentes >= 5){ alert('Máximo 5 tipos de entrada por evento.'); return; }
+  renderTipoEntradaRow(data, existentes === 0);
+  actualizarResumenTipos();
+}
+
+function inicializarTiposEntradaForm(){
+  var container = document.getElementById('tipos-entrada-container');
+  if(!container) return;
+  if(container.querySelectorAll('.tipo-entrada-row').length === 0){
+    renderTipoEntradaRow({}, true);
+  }
+}
+
+function actualizarResumenTipos(){
+  /* sincroniza el #pb (legacy) con el precio del primer tipo y refresca el resumen */
+  var tipos = leerTiposEntradaForm();
+  var primero = tipos[0] || {};
+  var pb = document.getElementById('pb');
+  if(pb) pb.value = primero.precio_base || 0;
+  if(typeof calcFee === 'function') calcFee();
+}
+
+/* ============= MISMA LOGICA PARA EL MODAL DE EDICION ============= */
+function renderTipoEntradaEditRow(data, canDelete){
+  data = data || {};
+  var idx = document.querySelectorAll('#edit-tipos-container .tipo-entrada-row').length;
+  var row = document.createElement('div');
+  row.className = 'tipo-entrada-row';
+  row.style.cssText = 'border:1px solid var(--b1);border-radius:12px;padding:14px;margin-bottom:10px;background:rgba(255,255,255,.02)';
+  /* data-tiene-ventas marca tipos que no se pueden borrar porque ya tienen ordenes */
+  if(data.id) row.setAttribute('data-tipo-id', data.id);
+  row.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+      '<div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--t)">Tipo #'+(idx+1)+'</div>'+
+      (canDelete ? '<button type="button" onclick="this.closest(\'.tipo-entrada-row\').remove()" style="background:none;border:none;color:#C44040;font-size:11px;cursor:pointer;font-family:Outfit,sans-serif;padding:4px 8px">Quitar</button>' : '')+
+    '</div>'+
+    '<div class="fg" style="margin-bottom:8px"><label class="fl">Nombre</label><input class="fi" data-field="nombre" type="text" placeholder="General, VIP..." value="'+escapeHtml(data.nombre || '')+'"></div>'+
+    '<div class="fg-row" style="margin-bottom:8px">'+
+      '<div class="fg" style="margin:0"><label class="fl">Precio ($)</label><input class="fi" data-field="precio" type="number" placeholder="3000" value="'+(data.precio_base || '')+'"></div>'+
+      '<div class="fg" style="margin:0"><label class="fl">Capacidad</label><input class="fi" data-field="capacidad" type="number" placeholder="100" value="'+(data.capacidad || '')+'"></div>'+
+    '</div>'+
+    '<details style="margin-top:6px"'+((data.hora_limite || data.promo_paga) ? ' open' : '')+'><summary style="font-size:11px;color:var(--t3);cursor:pointer;padding:4px 0;user-select:none">Opciones avanzadas (horario y promos)</summary>'+
+      '<div style="padding-top:10px">'+
+        '<div class="fg" style="margin-bottom:8px"><label class="fl">Hora límite del QR</label><input class="fi" data-field="hora_limite" type="time" value="'+escapeHtml(String(data.hora_limite || '').slice(0,5))+'"><div style="font-size:11px;color:var(--t3);margin-top:4px">Ej: 23:00. El QR no se podrá escanear después de esa hora.</div></div>'+
+        '<div class="fg-row" style="margin:0"><div class="fg" style="margin:0"><label class="fl">Promo: paga</label><input class="fi" data-field="promo_paga" type="number" placeholder="0" value="'+(data.promo_paga || '')+'"></div><div class="fg" style="margin:0"><label class="fl">y recibe</label><input class="fi" data-field="promo_recibe" type="number" placeholder="0" value="'+(data.promo_recibe || '')+'"></div></div>'+
+      '</div>'+
+    '</details>';
+  document.getElementById('edit-tipos-container').appendChild(row);
+}
+
+function agregarTipoEntradaEdit(){
+  var container = document.getElementById('edit-tipos-container');
+  if(!container) return;
+  var existentes = container.querySelectorAll('.tipo-entrada-row').length;
+  if(existentes >= 5){ alert('Máximo 5 tipos de entrada por evento.'); return; }
+  renderTipoEntradaEditRow({}, true);
+}
+
+function leerTiposEntradaEdit(){
+  var rows = document.querySelectorAll('#edit-tipos-container .tipo-entrada-row');
+  var result = [];
+  rows.forEach(function(row){
+    var get = function(name){ var el = row.querySelector('[data-field="'+name+'"]'); return el ? String(el.value || '').trim() : ''; };
+    var nombre = get('nombre') || 'General';
+    var precio = parseInt(get('precio')||'0', 10) || 0;
+    var capacidad = parseInt(get('capacidad')||'100', 10) || 100;
+    var horaLimite = get('hora_limite') || '';
+    var promoPaga = parseInt(get('promo_paga')||'0', 10) || 0;
+    var promoRecibe = parseInt(get('promo_recibe')||'0', 10) || 0;
+    result.push({
+      nombre: nombre,
+      precio_base: precio,
+      capacidad: capacidad,
+      hora_limite: horaLimite,
+      promo_paga: promoPaga,
+      promo_recibe: promoRecibe,
+    });
+  });
+  return result;
 }
 
 function limpiarFormEvento(root){
   root.querySelectorAll('input:not([type="file"]):not([type="hidden"]):not([type="checkbox"]), textarea').forEach(function(f){ f.value = ''; });
   var flyerInp = root.querySelector('input[type="file"]');
   if(flyerInp) flyerInp.value = '';
+  /* Reset hora a 20:00 */
+  var oh = document.getElementById('org-hora'); if(oh) oh.value = '20:00';
+  /* Reset tipos de entrada: borrar todos y crear uno nuevo */
+  var container = document.getElementById('tipos-entrada-container');
+  if(container){ container.innerHTML = ''; renderTipoEntradaRow({}, true); }
+  actualizarResumenTipos();
 }
 
 function actualizarStoreConEvento(item){
@@ -4467,7 +4644,27 @@ function editarEvento(eventId){
   var tipos = Array.isArray(ev.tipos_entrada) ? ev.tipos_entrada : [];
   var primero = tipos[0] || {};
   set('edit-precio', primero.precio_base || 0);
-  set('edit-fee', primero.fee_organizador || 0);
+  set('edit-fee', 0);
+  /* Cargar tipos en el contenedor dinamico */
+  var cont = document.getElementById('edit-tipos-container');
+  if(cont){
+    cont.innerHTML = '';
+    if(tipos.length === 0){
+      renderTipoEntradaEditRow({ nombre: 'General' }, false);
+    } else {
+      tipos.forEach(function(t, idx){
+        renderTipoEntradaEditRow({
+          id: t.id,
+          nombre: t.nombre,
+          precio_base: Math.round(Number(t.precio_total || t.precio_base || 0)),
+          capacidad: t.capacidad,
+          hora_limite: t.hora_limite,
+          promo_paga: t.promo_paga,
+          promo_recibe: t.promo_recibe,
+        }, idx > 0); /* el primero no se puede borrar */
+      });
+    }
+  }
   var nota = document.getElementById('edit-nota');
   if(nota) nota.textContent = '';
   editToggleFee();
@@ -4488,6 +4685,8 @@ async function guardarEdicionEvento(){
   var flyerNuevo = flyerInput && flyerInput.files && flyerInput.files[0]
     ? await resizeImageFile(flyerInput.files[0])
     : '';
+  var tiposEdit = leerTiposEntradaEdit();
+  var capacidadTotal = tiposEdit.reduce(function(s,t){ return s + (parseInt(t.capacidad||0,10)||0); }, 0) || 100;
   var payload = {
     name:       g('edit-nombre').trim(),
     desc:       g('edit-desc').trim(),
@@ -4496,11 +4695,12 @@ async function guardarEdicionEvento(){
     time:       g('edit-hora') || '20:00',
     place:      g('edit-lugar').trim(),
     type:       g('edit-tipo') || 'pago',
-    capacity:   g('edit-capacidad') || '100',
-    precio_base: g('edit-precio') || '0',
-    fee:        g('edit-fee') || '0',
+    capacity:   String(capacidadTotal),
+    precio_base: String(tiposEdit[0] ? (tiposEdit[0].precio_base || 0) : 0),
+    fee:        '0',
     flyer:      flyerNuevo || flyerActual || '',
-    activo:     !!(document.getElementById('edit-activo') || {}).checked
+    activo:     !!(document.getElementById('edit-activo') || {}).checked,
+    tipos_entrada: tiposEdit,
   };
   try{
     var data = await apiPut('/api/productos/eventos/' + encodeURIComponent(eventId), payload);
@@ -4612,6 +4812,7 @@ document.addEventListener('DOMContentLoaded', function(){
   cargarEventosPublicos();
   cargarDirectoriosPublicos();
   startFlyerWheel();
+  inicializarTiposEntradaForm();
   /* link directo de compra: ?evento=ID */
   (function(){
     var params = new URLSearchParams(window.location.search);

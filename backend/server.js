@@ -929,7 +929,7 @@ async function getEventWithTickets(eventId) {
       COALESCE(json_agg(json_build_object(
         'id', t.id, 'nombre', t.nombre,
         'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-        'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles
+        'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
       ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
     FROM eventos e
     LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -964,15 +964,46 @@ async function getMercadoPagoSellerForOrder(orderId) {
   return refreshSellerMpToken(rows[0]);
 }
 
+/* Normaliza una entrada del array de tipos_entrada que envia el frontend */
+function normalizarTipoEntrada(t, esGratis){
+  const nombre = String(t?.nombre || t?.name || 'General').trim() || 'General';
+  const precio = esGratis ? 0 : parseMoney(t?.precio_base ?? t?.precio ?? t?.price ?? 0);
+  const cap = Math.max(1, parseInt(t?.capacidad ?? t?.capacity ?? 100, 10) || 100);
+  let horaLimite = String(t?.hora_limite || '').trim();
+  if(horaLimite && !/^\d{2}:\d{2}/.test(horaLimite)) horaLimite = '';
+  const promoPaga = Math.max(0, parseInt(t?.promo_paga || 0, 10) || 0);
+  const promoRecibe = Math.max(0, parseInt(t?.promo_recibe || 0, 10) || 0);
+  /* la promo solo aplica si recibe > paga > 0 */
+  const promoValida = promoPaga > 0 && promoRecibe > promoPaga;
+  const desc = String(t?.descripcion || t?.descripcion_extra || '').trim();
+  return {
+    nombre, precio, capacidad: cap,
+    hora_limite: horaLimite || null,
+    promo_paga: promoValida ? promoPaga : 0,
+    promo_recibe: promoValida ? promoRecibe : 0,
+    descripcion_extra: desc,
+  };
+}
+
 async function createOrSaveEvent(req, res, activo) {
   const body = req.body || {};
   const nombre = String(body.name || body.nombre || '').trim();
   const fecha = String(body.date || body.fecha || '').trim();
   const hora = String(body.time || body.hora || '20:00').trim() || '20:00';
-  const capacidad = parseCapacity(body.capacity || body.capacidad);
   const tipoEvento = String(body.type || body.tipo || 'pago').trim();
   const esGratis = tipoEvento === 'gratis' || tipoEvento === 'reserva';
-  const precioBase = esGratis ? 0 : parseMoney(body.precio_base || body.price);
+  /* Compatibilidad: si llega tipos_entrada como array, usarlo; sino, armar uno solo desde precio_base + capacity */
+  let tipos = Array.isArray(body.tipos_entrada) ? body.tipos_entrada.map(t => normalizarTipoEntrada(t, esGratis)) : [];
+  if (!tipos.length) {
+    tipos = [normalizarTipoEntrada({
+      nombre: 'General',
+      precio_base: body.precio_base || body.price || 0,
+      capacidad: body.capacity || body.capacidad || 100,
+    }, esGratis)];
+  }
+  tipos = tipos.slice(0, 5); /* limite practico de 5 tipos por evento */
+  const capacidad = tipos.reduce((sum, t) => sum + t.capacidad, 0) || parseCapacity(body.capacity || body.capacidad);
+  const precioBase = tipos[0]?.precio || 0;
   /* El organizador ya no agrega un fee. La comision (10%) se le cobra al comprador como servicio. */
   const fee = 0;
 
@@ -982,8 +1013,8 @@ async function createOrSaveEvent(req, res, activo) {
   if (activo && new Date(`${fecha}T23:59:59`) < new Date()) {
     return res.status(400).json({ ok: false, error: 'La fecha del evento no puede estar vencida' });
   }
-  if (!esGratis && precioBase <= 0) {
-    return res.status(400).json({ ok: false, error: 'Los eventos pagos necesitan un precio mayor a cero' });
+  if (!esGratis && tipos.every(t => t.precio <= 0)) {
+    return res.status(400).json({ ok: false, error: 'Los eventos pagos necesitan al menos un tipo de entrada con precio mayor a cero' });
   }
   if (activo && !esGratis && !req.user.mp_access_token) {
     return res.status(409).json({
@@ -1018,10 +1049,16 @@ async function createOrSaveEvent(req, res, activo) {
         activo,
       ]);
 
-      await client.query(`
-        INSERT INTO tipos_entrada (evento_id, nombre, descripcion, precio_base, fee_organizador, capacidad, disponibles)
-        VALUES ($1, 'General', '', $2, $3, $4, $4)
-      `, [rows[0].id, precioBase, fee, capacidad]);
+      /* Crear todos los tipos de entrada */
+      for (const t of tipos) {
+        await client.query(`
+          INSERT INTO tipos_entrada (
+            evento_id, nombre, descripcion, precio_base, fee_organizador,
+            capacidad, disponibles, hora_limite, promo_paga, promo_recibe, descripcion_extra
+          )
+          VALUES ($1,$2,'',$3,0,$4,$4,$5,$6,$7,$8)
+        `, [rows[0].id, t.nombre, t.precio, t.capacidad, t.hora_limite, t.promo_paga, t.promo_recibe, t.descripcion_extra]);
+      }
 
       await client.query('COMMIT');
       const event = await getEventWithTickets(rows[0].id);
@@ -1105,17 +1142,25 @@ app.put('/api/productos/eventos/:id', requireAuth, async (req, res) => {
   const nombre = String(body.name || body.nombre || '').trim();
   const fecha = String(body.date || body.fecha || '').trim();
   const hora = String(body.time || body.hora || '20:00').trim() || '20:00';
-  const capacidad = parseCapacity(body.capacity || body.capacidad);
   const tipoEvento = String(body.type || body.tipo || 'pago').trim();
   const esGratis = tipoEvento === 'gratis' || tipoEvento === 'reserva';
-  const precioBase = esGratis ? 0 : parseMoney(body.precio_base || body.price);
-  /* El organizador ya no agrega un fee. La comision (10%) se le cobra al comprador como servicio. */
-  const fee = 0;
+  let tiposNuevos = Array.isArray(body.tipos_entrada) ? body.tipos_entrada.map(t => normalizarTipoEntrada(t, esGratis)) : [];
+  if (!tiposNuevos.length) {
+    tiposNuevos = [normalizarTipoEntrada({
+      nombre: 'General',
+      precio_base: body.precio_base || body.price || 0,
+      capacidad: body.capacity || body.capacidad || 100,
+    }, esGratis)];
+  }
+  tiposNuevos = tiposNuevos.slice(0, 5);
+  const capacidad = tiposNuevos.reduce((sum, t) => sum + t.capacidad, 0) || parseCapacity(body.capacity || body.capacidad);
   const activo = body.activo === true || body.activo === 'true';
 
   if (!nombre) return res.status(400).json({ ok: false, error: 'El evento necesita nombre' });
   if (!fecha) return res.status(400).json({ ok: false, error: 'El evento necesita fecha' });
-  if (!esGratis && precioBase <= 0) return res.status(400).json({ ok: false, error: 'Los eventos pagos necesitan un precio mayor a cero' });
+  if (!esGratis && tiposNuevos.every(t => t.precio <= 0)) {
+    return res.status(400).json({ ok: false, error: 'Los eventos pagos necesitan al menos un tipo de entrada con precio mayor a cero' });
+  }
   if (activo && !esGratis && !req.user.mp_access_token) {
     return res.status(409).json({ ok: false, code: 'seller_mp_not_connected', error: 'Conecta Mercado Pago antes de publicar eventos pagos' });
   }
@@ -1151,21 +1196,55 @@ app.put('/api/productos/eventos/:id', requireAuth, async (req, res) => {
       eventId,
     ]);
 
-    const { rows: tipos } = await client.query(
-      'SELECT id, capacidad FROM tipos_entrada WHERE evento_id = $1 ORDER BY created_at ASC LIMIT 1',
+    /* Actualizar tipos de entrada: estrategia simple - obtener existentes,
+       actualizar los que coinciden por nombre, crear nuevos, eliminar los que ya no estan */
+    const { rows: tiposActuales } = await client.query(
+      'SELECT id, nombre, capacidad, disponibles FROM tipos_entrada WHERE evento_id = $1',
       [eventId]
     );
-    if (tipos.length) {
-      const viejaCapacidad = Number(tipos[0].capacidad || 0);
-      const delta = capacidad - viejaCapacidad;
-      await client.query(`
-        UPDATE tipos_entrada SET
-          precio_base = $1,
-          fee_organizador = $2,
-          capacidad = $3,
-          disponibles = GREATEST(0, disponibles + $4)
-        WHERE id = $5
-      `, [precioBase, fee, capacidad, delta, tipos[0].id]);
+    const actualesPorNombre = new Map(tiposActuales.map(t => [String(t.nombre).toLowerCase().trim(), t]));
+    const nombresNuevos = new Set();
+
+    for (const tn of tiposNuevos) {
+      const key = tn.nombre.toLowerCase().trim();
+      nombresNuevos.add(key);
+      const existente = actualesPorNombre.get(key);
+      if (existente) {
+        const viejaCapacidad = Number(existente.capacidad || 0);
+        const delta = tn.capacidad - viejaCapacidad;
+        await client.query(`
+          UPDATE tipos_entrada SET
+            precio_base = $1,
+            fee_organizador = 0,
+            capacidad = $2,
+            disponibles = GREATEST(0, disponibles + $3),
+            hora_limite = $4,
+            promo_paga = $5,
+            promo_recibe = $6,
+            descripcion_extra = $7
+          WHERE id = $8
+        `, [tn.precio, tn.capacidad, delta, tn.hora_limite, tn.promo_paga, tn.promo_recibe, tn.descripcion_extra, existente.id]);
+      } else {
+        await client.query(`
+          INSERT INTO tipos_entrada (
+            evento_id, nombre, descripcion, precio_base, fee_organizador,
+            capacidad, disponibles, hora_limite, promo_paga, promo_recibe, descripcion_extra
+          ) VALUES ($1,$2,'',$3,0,$4,$4,$5,$6,$7,$8)
+        `, [eventId, tn.nombre, tn.precio, tn.capacidad, tn.hora_limite, tn.promo_paga, tn.promo_recibe, tn.descripcion_extra]);
+      }
+    }
+
+    /* Eliminar tipos que ya no existen, SOLO si no tienen ventas asociadas */
+    for (const t of tiposActuales) {
+      const key = String(t.nombre).toLowerCase().trim();
+      if (nombresNuevos.has(key)) continue;
+      const { rows: usos } = await client.query(
+        'SELECT 1 FROM orden_items WHERE tipo_entrada_id = $1 LIMIT 1',
+        [t.id]
+      );
+      if (!usos.length) {
+        await client.query('DELETE FROM tipos_entrada WHERE id = $1', [t.id]);
+      }
     }
 
     await client.query('COMMIT');
@@ -1225,7 +1304,7 @@ app.get('/api/productos/mios', requireAuth, async (req, res) => {
         COALESCE(json_agg(json_build_object(
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles
+          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
         ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -1511,7 +1590,7 @@ app.get('/api/eventos', async (req, res) => {
         COALESCE(json_agg(json_build_object(
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles
+          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
         ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -1533,7 +1612,7 @@ app.get('/api/eventos/:id', async (req, res) => {
         COALESCE(json_agg(json_build_object(
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles
+          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
         ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -1581,14 +1660,28 @@ app.post('/api/compra/iniciar', requireAuth, async (req, res) => {
       if (tipo.disponibles < item.cantidad)
         return res.status(400).json({ ok: false, error: `Sin stock para "${tipo.nombre}"` });
  
-      /* precio del organizador (lo que recibe por entrada) */
-      const precioOrg = parseFloat(tipo.precio_base) + parseFloat(tipo.fee_organizador);
-      /* servicio EntradasJujuy (10% sobre el precio del organizador, lo paga el comprador) */
-      const servicioFee = Math.round(precioOrg * (MP_MARKETPLACE_FEE_PERCENT / 100) * 100) / 100;
-      /* lo que paga el comprador por entrada */
-      const precioConServicio = Math.round((precioOrg + servicioFee) * 100) / 100;
-      mpItems.push({ id: tipo.id, title: tipo.nombre, quantity: item.cantidad, unit_price: precioConServicio, currency_id: 'ARS' });
-      itemsData.push({ ...item, _tipo: tipo, _precioOrg: precioOrg, _servicioFee: servicioFee, _precioConServicio: precioConServicio });
+      /* precio del organizador por entrada individual */
+      const precioPorEntrada = parseFloat(tipo.precio_base) + parseFloat(tipo.fee_organizador);
+      /* promo: si tipo.promo_paga > 0 y promo_recibe > promo_paga, cada "unidad" que
+         compra el cliente le da promo_recibe QRs al precio de promo_paga entradas */
+      const promoPaga = parseInt(tipo.promo_paga || 0, 10) || 0;
+      const promoRecibe = parseInt(tipo.promo_recibe || 0, 10) || 0;
+      const promoActiva = promoPaga > 0 && promoRecibe > promoPaga;
+      /* qrs por unidad comprada */
+      const qrsPorUnidad = promoActiva ? promoRecibe : 1;
+      /* precio que paga el cliente al organizador, por unidad */
+      const precioOrgUnidad = promoActiva ? precioPorEntrada * promoPaga : precioPorEntrada;
+      /* stock que consume cada unidad */
+      const stockPorUnidad = qrsPorUnidad;
+      /* validar stock real disponible */
+      if (Number(tipo.disponibles) < item.cantidad * stockPorUnidad) {
+        return res.status(409).json({ ok: false, error: `Sin stock suficiente para "${tipo.nombre}"` });
+      }
+      /* servicio EntradasJujuy (10% del precio del organizador por unidad) */
+      const servicioFeeUnidad = Math.round(precioOrgUnidad * (MP_MARKETPLACE_FEE_PERCENT / 100) * 100) / 100;
+      const precioConServicio = Math.round((precioOrgUnidad + servicioFeeUnidad) * 100) / 100;
+      mpItems.push({ id: tipo.id, title: tipo.nombre + (promoActiva ? ` (${promoRecibe}x${promoPaga})` : ''), quantity: item.cantidad, unit_price: precioConServicio, currency_id: 'ARS' });
+      itemsData.push({ ...item, _tipo: tipo, _precioOrg: precioOrgUnidad, _servicioFee: servicioFeeUnidad, _precioConServicio: precioConServicio, _qrsPorUnidad: qrsPorUnidad, _stockPorUnidad: stockPorUnidad });
     }
 
     if (!mpItems.length) return res.status(400).json({ ok: false, error: 'Sin items válidos' });
@@ -1748,20 +1841,27 @@ async function procesarPago(ordenId, pago) {
   );
  
   const { rows: items } = await db.query(`
-    SELECT oi.*, te.nombre AS tipo_nombre,
+    SELECT oi.*, te.nombre AS tipo_nombre, te.hora_limite, te.promo_paga, te.promo_recibe,
            ev.id AS evento_id, ev.nombre AS evento_nombre, ev.fecha, ev.hora, ev.lugar
     FROM orden_items oi
     JOIN tipos_entrada te ON te.id = oi.tipo_entrada_id
     JOIN eventos ev ON ev.id = te.evento_id
     WHERE oi.orden_id = $1
   `, [ordenId]);
- 
+
   const entradas = [];
   for (const item of items) {
-    for (let i = 0; i < item.cantidad; i++) {
+    /* Si el tipo tiene promo (paga N recibe M), por cada unidad comprada generamos M QRs */
+    const promoPaga = parseInt(item.promo_paga || 0, 10) || 0;
+    const promoRecibe = parseInt(item.promo_recibe || 0, 10) || 0;
+    const promoActiva = promoPaga > 0 && promoRecibe > promoPaga;
+    const qrsPorUnidad = promoActiva ? promoRecibe : 1;
+    const totalQrs = item.cantidad * qrsPorUnidad;
+
+    for (let i = 0; i < totalQrs; i++) {
       const entradaId = uuid();
       const token = jwt.sign({ type: 'ticket', entrada_id: entradaId, orden_id: ordenId, evento_id: item.evento_id }, jwtSecret);
- 
+
       await db.query(
         'INSERT INTO entradas (id, orden_id, tipo_entrada_id, token_qr, estado, numero) VALUES ($1,$2,$3,$4,\'valida\',$5) ON CONFLICT DO NOTHING',
         [entradaId, ordenId, item.tipo_entrada_id, token, i + 1]
@@ -1773,9 +1873,16 @@ async function procesarPago(ordenId, pago) {
       if (stockRows[0]?.disponibles === 0) {
         console.warn(`[STOCK] Tipo entrada ${item.tipo_entrada_id} llegó a 0 (orden ${ordenId})`);
       }
- 
+
       const qrDataUrl = await makeTicketQr(token);
-      entradas.push({ id: entradaId, token, qrDataUrl, tipo: item.tipo_nombre, evento: item.evento_nombre, fecha: item.fecha, hora: item.hora, lugar: item.lugar, numero: i+1, total_tipo: item.cantidad });
+      entradas.push({
+        id: entradaId, token, qrDataUrl,
+        tipo: item.tipo_nombre + (promoActiva ? ` (Pack ${promoRecibe}x${promoPaga})` : ''),
+        evento: item.evento_nombre, fecha: item.fecha, hora: item.hora, lugar: item.lugar,
+        hora_limite: item.hora_limite,
+        fecha_compra: orden.created_at || orden.fecha_pago,
+        numero: i+1, total_tipo: totalQrs,
+      });
     }
   }
  
@@ -1918,7 +2025,7 @@ app.post('/api/validar-qr', requireAuth, async (req, res) => {
  
     const { rows } = await db.query(`
       SELECT en.id, en.orden_id, en.estado, en.numero, en.fecha_uso,
-             te.nombre AS tipo, ev.id AS evento_id, ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar, ev.organizador_id,
+             te.nombre AS tipo, te.hora_limite, ev.id AS evento_id, ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar, ev.organizador_id,
              o.comprador_nombre, o.comprador_dni
       FROM entradas en
       JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
@@ -1926,7 +2033,7 @@ app.post('/api/validar-qr', requireAuth, async (req, res) => {
       JOIN ordenes o ON o.id = en.orden_id
       WHERE en.id = $1
     `, [payload.entrada_id]);
- 
+
     if (!rows.length) return res.json({ ok: false, valida: false, motivo: 'Entrada no encontrada' });
     const entrada = rows[0];
     if (payload.orden_id && String(payload.orden_id) !== String(entrada.orden_id)) {
@@ -1938,9 +2045,23 @@ app.post('/api/validar-qr', requireAuth, async (req, res) => {
     if (req.user.rol !== 'admin' && String(entrada.organizador_id) !== String(req.user.id)) {
       return res.status(403).json({ ok: false, valida: false, motivo: 'No tenes permiso para validar entradas de este evento' });
     }
- 
+
     if (entrada.estado === 'usada') return res.json({ ok: true, valida: false, motivo: 'Entrada ya utilizada', usada_el: entrada.fecha_uso, entrada });
     if (entrada.estado === 'cancelada') return res.json({ ok: true, valida: false, motivo: 'Entrada cancelada', entrada });
+
+    /* Validacion de hora limite (ej: early bird hasta las 23:00) */
+    if (entrada.hora_limite) {
+      const now = new Date();
+      const horaActual = now.toTimeString().slice(0, 5); /* HH:MM */
+      const horaLimiteStr = String(entrada.hora_limite).slice(0, 5);
+      if (horaActual > horaLimiteStr) {
+        return res.json({
+          ok: true, valida: false,
+          motivo: `Esta entrada solo era valida hasta las ${horaLimiteStr}`,
+          entrada,
+        });
+      }
+    }
  
     const used = await db.query(
       "UPDATE entradas SET estado='usada', fecha_uso=NOW() WHERE id=$1 AND estado='valida' RETURNING estado, fecha_uso",
@@ -2007,11 +2128,25 @@ async function enviarEmail(orden, entradas) {
   console.log('[EMAIL] Enviado a:', orden.comprador_email);
 }
  
+/* Migracion automatica de schema al arrancar: agrega columnas nuevas si faltan */
+async function autoMigrate(){
+  try {
+    await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS hora_limite TIME`);
+    await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS promo_paga INT DEFAULT 0`);
+    await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS promo_recibe INT DEFAULT 0`);
+    await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS descripcion_extra TEXT`);
+    console.log('[MIGRATE] Schema actualizado');
+  } catch(err){
+    console.error('[MIGRATE] Error:', err.message);
+  }
+}
+
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n✓ EntradasJujuy backend en http://localhost:${PORT}`);
   console.log(`  MP Token: ${MP_ACCESS_TOKEN ? MP_ACCESS_TOKEN.substring(0,15) + '...' : 'NO CONFIGURADO'}`);
   console.log(`  Entorno: ${process.env.NODE_ENV || 'development'}`);
+  await autoMigrate();
 });
  
 module.exports = app;
