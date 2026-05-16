@@ -4116,7 +4116,7 @@ function renderPublicEvents(events){
         '</div>'+
         '<div class="ev-fr">'+
         '<span class="ev-pr '+(ev.price === 'Gratis' ? 'free' : '')+'">'+escapeHtml(ev.price || '')+'</span>'+
-        '<div style="display:flex;align-items:center;gap:6px">'+shareBtn(ev)+'<button class="bev t" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button></div>'+
+        '<button class="bev t" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button>'+
         '</div></div></div>';
     }).join('');
   }
@@ -4130,7 +4130,6 @@ function renderPublicEvents(events){
         '<div class="evi-body"><div class="evi-cat">'+escapeHtml(ev.category || 'Evento')+'</div><div class="evi-nm">'+escapeHtml(ev.name)+'</div><div class="evi-meta">'+escapeHtml([formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' - '))+'</div></div>'+
         '<div class="evi-r">'+
         '<div class="ivi-pr">'+escapeHtml(ev.price || '')+'</div>'+
-        shareBtnDark(ev)+
         '<button class="bev t" style="font-size:10px;padding:0 12px;min-height:36px" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button>'+
         '</div></div>';
     }).join('');
@@ -4141,7 +4140,7 @@ function renderPublicEvents(events){
       var parts = String(ev.date || '').split('-');
       var day = parts[2] || '--';
       var mon = parts[1] || '--';
-      return '<div class="ag-i" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)"><div class="ag-dt"><span class="ag-day">'+escapeHtml(day)+'</span><span class="ag-mon">'+escapeHtml(mon)+'</span></div><div class="ag-ln"></div><div class="ag-inf"><div class="ag-nm">'+escapeHtml(ev.name)+'</div><div class="ag-meta">'+escapeHtml([ev.category, ev.place].filter(Boolean).join(' - '))+'</div></div><div class="ag-r"><span class="ag-pr">'+escapeHtml(ev.price || '')+'</span><div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><div class="ag-hr">'+escapeHtml(ev.time || '')+'</div>'+shareBtn(ev)+'</div></div></div>';
+      return '<div class="ag-i" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)"><div class="ag-dt"><span class="ag-day">'+escapeHtml(day)+'</span><span class="ag-mon">'+escapeHtml(mon)+'</span></div><div class="ag-ln"></div><div class="ag-inf"><div class="ag-nm">'+escapeHtml(ev.name)+'</div><div class="ag-meta">'+escapeHtml([ev.category, ev.place].filter(Boolean).join(' - '))+'</div></div><div class="ag-r"><span class="ag-pr">'+escapeHtml(ev.price || '')+'</span><div class="ag-hr">'+escapeHtml(ev.time || '')+'</div></div></div>';
     }).join('');
   }
 }
