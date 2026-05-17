@@ -1575,7 +1575,12 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
         <div class="cr"><span class="cr-l" style="font-weight:500;color:var(--t2)">Total a pagar</span><span class="cr-v tot" id="cr-tot">$0</span></div>
         <div id="cr-info-servicio" style="display:none;font-size:11px;color:var(--t3);margin-top:8px;padding:8px 10px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.18);border-radius:8px;line-height:1.4">Al precio de la entrada se le suma 12,60% por servicios EntradasJujuy. Así el organizador recibe íntegro el monto publicado.</div>
       </div>
-      <!-- Formulario del comprador -->
+      <!-- Aviso para usuarios sin login (entró desde link compartido) -->
+      <div id="guest-purchase-note" style="display:none;margin-top:14px;padding:13px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:10px;text-align:center">
+        <div style="font-size:13px;color:var(--t1);font-weight:500;margin-bottom:4px;line-height:1.3">Listo para finalizar tu compra</div>
+        <div style="font-size:11px;color:var(--t3);line-height:1.45">Cuando toques <strong>Continuar al pago</strong> te vamos a pedir crear una cuenta o iniciar sesión para enviarte el QR por email.</div>
+      </div>
+      <!-- Formulario del comprador (solo logueados) -->
       <div id="form-comprador" style="margin-top:16px;display:none">
         <div style="font-size:10px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px">Tus datos</div>
         <input id="c-nombre" class="fi" type="text" placeholder="Tu nombre completo" style="margin-bottom:8px">
@@ -2245,10 +2250,26 @@ function QQ(t,d){
   if(srvRow) srvRow.style.display = base > 0 ? 'flex' : 'none';
   if(srvInfo) srvInfo.style.display = base > 0 ? 'block' : 'none';
   document.getElementById('cr-tot').textContent='$'+total.toLocaleString('es-AR');
-  // Mostrar formulario si hay al menos 1 entrada
+  // Mostrar formulario o aviso de invitado según el estado de login
   const totalEntradas = QV.g+QV.p+QV.v;
-  document.getElementById('form-comprador').style.display = totalEntradas > 0 ? 'block' : 'none';
-  if(totalEntradas > 0) syncCompradorFields();
+  const formC = document.getElementById('form-comprador');
+  const guestN = document.getElementById('guest-purchase-note');
+  const logged = (typeof isLoggedIn === 'function') ? isLoggedIn() : !!_usuario;
+  if(totalEntradas > 0){
+    if(logged){
+      if(formC) formC.style.display = 'block';
+      if(guestN) guestN.style.display = 'none';
+      syncCompradorFields();
+    } else {
+      /* invitado (vino por link compartido): no mostramos los inputs porque
+         confunden; el auth modal se abre al tocar Continuar al pago */
+      if(formC) formC.style.display = 'none';
+      if(guestN) guestN.style.display = 'block';
+    }
+  } else {
+    if(formC) formC.style.display = 'none';
+    if(guestN) guestN.style.display = 'none';
+  }
 }
 
 // ID de la orden actual - se guarda cuando se inicia el pago
@@ -2992,6 +3013,12 @@ function setAutenticado(u, token){
   cargarMisProductos();
   cargarMercadoPagoStatus();
   ejRestoreNavAuth();
+  /* Si el usuario entró por un link compartido y eligió cantidades antes de
+     loguearse, refrescamos la vista de compra para mostrar el form con sus
+     datos auto-completados. */
+  if((QV.g + QV.p + QV.v) > 0){
+    QQ('g', 0);
+  }
 }
 
 function syncCompradorFields(){
@@ -4857,6 +4884,62 @@ document.addEventListener('DOMContentLoaded', function(){
   cargarDirectoriosPublicos();
   startFlyerWheel();
   inicializarTiposEntradaForm();
+
+  /* === DETECTOR DE IN-APP BROWSER (Instagram, WhatsApp, Facebook, TikTok...) ===
+     Cuando alguien abre un link compartido desde una red social, suele caer en
+     un navegador embebido que tiene limitaciones. Forzamos la apertura en el
+     navegador real del dispositivo. */
+  (function detectAndRedirectInAppBrowser(){
+    var ua = navigator.userAgent || '';
+    var isInApp = /FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Line\//i.test(ua) ||
+                  /TikTok|Twitter|Snapchat|Pinterest|MeWe|GSA\//i.test(ua) ||
+                  (/WhatsApp/i.test(ua));
+    if(!isInApp) return;
+    var url = window.location.href;
+    var isAndroid = /Android/i.test(ua);
+    var isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+    /* Overlay con un solo botón "Abrir en navegador" */
+    var overlay = document.createElement('div');
+    overlay.id = 'inapp-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(10,7,4,0.96);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:Outfit,sans-serif';
+    overlay.innerHTML =
+      '<div style="max-width:380px;width:100%;background:#1a1408;border:1px solid rgba(196,105,43,.25);border-radius:18px;padding:24px 22px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.6)">'+
+        '<div style="font-family:\'Fraunces\',serif;font-size:22px;font-weight:900;color:#EAE0D0;margin-bottom:10px;line-height:1.15">Abrí EntradasJujuy en tu navegador</div>'+
+        '<div style="font-size:13px;color:#9A8670;line-height:1.5;margin-bottom:20px">Para comprar tu entrada y recibir el QR sin problemas necesitás abrir esta página en Chrome, Safari o tu navegador habitual — no en la app de '+(/Instagram/i.test(ua)?'Instagram':/FBAN|FBAV/i.test(ua)?'Facebook':/WhatsApp/i.test(ua)?'WhatsApp':'redes sociales')+'.</div>'+
+        (isAndroid
+          ? '<button id="inapp-open-btn" style="width:100%;height:46px;border:none;border-radius:10px;background:#C4692B;color:#0a0704;font-size:14px;font-weight:700;cursor:pointer;font-family:Outfit,sans-serif;letter-spacing:.3px">Abrir en navegador</button>'
+          : '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px;font-size:12px;color:#C4B59C;line-height:1.55;text-align:left">'+
+              '<div style="font-weight:700;color:#EAE0D0;margin-bottom:8px;font-size:13px">¿Cómo abrirlo en Safari?</div>'+
+              '<div>1. Tocá los <strong>tres puntos</strong> arriba a la derecha</div>'+
+              '<div>2. Elegí <strong>"Abrir en el navegador externo"</strong> o <strong>"Abrir en Safari"</strong></div>'+
+            '</div>')+
+        '<button id="inapp-continue-btn" style="margin-top:14px;background:none;border:none;color:#7d6c52;font-size:11px;font-family:Outfit,sans-serif;cursor:pointer;text-decoration:underline">Continuar igual aquí</button>'+
+      '</div>';
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+
+    var continueBtn = document.getElementById('inapp-continue-btn');
+    if(continueBtn) continueBtn.addEventListener('click', function(){
+      overlay.remove();
+      document.body.style.overflow = '';
+    });
+
+    if(isAndroid){
+      var openBtn = document.getElementById('inapp-open-btn');
+      if(openBtn) openBtn.addEventListener('click', function(){
+        /* intent:// fuerza la apertura en el navegador externo (Chrome por default) */
+        var stripped = url.replace(/^https?:\/\//, '');
+        window.location.href = 'intent://' + stripped + '#Intent;scheme=https;package=com.android.chrome;end';
+        /* Si Chrome no está, intent puede fallar — caer al fallback en 1.5s */
+        setTimeout(function(){
+          /* Como fallback, intentar abrir en otro browser */
+          window.location.href = 'googlechrome://navigate?url=' + encodeURIComponent(url);
+        }, 1500);
+      });
+    }
+  })();
+
   /* link directo de compra: ?evento=ID */
   (function(){
     var params = new URLSearchParams(window.location.search);
