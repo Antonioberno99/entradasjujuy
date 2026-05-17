@@ -1973,7 +1973,8 @@ function requireAccount(message){
 
 function GOI(pid, sid){
   if(pid !== 'publico' && !requireAccount('Necesitas una cuenta para usar este panel.')) return;
-  if(pid === 'publico' && sid === 'compra' && !requireAccount('Necesitas una cuenta para comprar entradas.')) return;
+  /* La vista de compra es PÚBLICA: cualquier persona puede ver el evento y elegir entradas.
+     La autenticación se pide recién al tocar "Continuar al pago" (iniciarPago). */
   const pre=PRE[pid];
   if(!pre)return;
   const portal=document.getElementById('portal-'+pid);
@@ -3908,7 +3909,7 @@ function eventoDesdeBackend(ev){
 }
 
 function seleccionarEventoCompra(id){
-  if(!requireAccount('Necesitas una cuenta para comprar entradas.')) return;
+  /* Ver el evento es público — la auth se pide al confirmar el pago */
   var store = ejLoadStore();
   var ev = (store.events || []).find(function(item){ return String(item.id) === String(id); });
   if(!ev || !ev.tipos_entrada || !ev.tipos_entrada.length){
