@@ -81,7 +81,11 @@ const MP_ACCESS_TOKEN = mpAccessTokenEnv.value;
 const MP_CLIENT_ID = mpClientIdEnv.value;
 const MP_CLIENT_SECRET = mpClientSecretEnv.value;
 const MP_REDIRECT_URI = String(process.env.MP_REDIRECT_URI || '').trim() || `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/mercadopago/oauth/callback`;
-const MP_MARKETPLACE_FEE_PERCENT = Number(process.env.MP_MARKETPLACE_FEE_PERCENT || '10');
+const MP_MARKETPLACE_FEE_PERCENT = Number(process.env.MP_MARKETPLACE_FEE_PERCENT || '6');
+/* Cobertura de la comision de Mercado Pago (checkout). Se le suma al comprador
+   pero NO va al marketplace_fee: queda en la unidad para que MP descuente su
+   tarifa de ahi y el organizador reciba integro el precio publicado. */
+const MP_CHECKOUT_FEE_PERCENT = Number(process.env.MP_CHECKOUT_FEE_PERCENT || '6.60');
 const MP_OAUTH_PKCE = String(process.env.MP_OAUTH_PKCE || 'true').toLowerCase() !== 'false';
 let lastMercadoPagoOAuthError = null;
 let lastMercadoPagoOAuthSuccess = null;
@@ -113,6 +117,7 @@ function mpConfigStatus() {
     },
     redirect_uri: MP_REDIRECT_URI,
     marketplace_fee_percent: MP_MARKETPLACE_FEE_PERCENT,
+    checkout_fee_percent: MP_CHECKOUT_FEE_PERCENT,
     last_oauth_error: lastMercadoPagoOAuthError,
     last_oauth_success: lastMercadoPagoOAuthSuccess,
     missing,
@@ -752,6 +757,7 @@ app.get('/api/mercadopago/status', requireAuth, async (req, res) => {
     mp_user_id: req.user.mp_user_id || null,
     connected_at: req.user.mp_connected_at || null,
     marketplace_fee_percent: MP_MARKETPLACE_FEE_PERCENT,
+    checkout_fee_percent: MP_CHECKOUT_FEE_PERCENT,
   });
 });
 
@@ -1326,6 +1332,7 @@ app.get('/api/productos/mios', requireAuth, async (req, res) => {
           mp_user_id: req.user.mp_user_id || null,
           connected_at: req.user.mp_connected_at || null,
           marketplace_fee_percent: MP_MARKETPLACE_FEE_PERCENT,
+          checkout_fee_percent: MP_CHECKOUT_FEE_PERCENT,
         },
       },
     });
@@ -1442,6 +1449,7 @@ app.get('/api/organizador/stats', requireAuth, async (req, res) => {
         chart: chartRows,
         events: eventRows,
         marketplace_fee_percent: MP_MARKETPLACE_FEE_PERCENT,
+        checkout_fee_percent: MP_CHECKOUT_FEE_PERCENT,
       },
     });
   } catch (err) {
@@ -1677,11 +1685,14 @@ app.post('/api/compra/iniciar', requireAuth, async (req, res) => {
       if (Number(tipo.disponibles) < item.cantidad * stockPorUnidad) {
         return res.status(409).json({ ok: false, error: `Sin stock suficiente para "${tipo.nombre}"` });
       }
-      /* servicio EntradasJujuy (10% del precio del organizador por unidad) */
+      /* servicio EntradasJujuy (6% del precio del organizador por unidad) - marketplace_fee */
       const servicioFeeUnidad = Math.round(precioOrgUnidad * (MP_MARKETPLACE_FEE_PERCENT / 100) * 100) / 100;
-      const precioConServicio = Math.round((precioOrgUnidad + servicioFeeUnidad) * 100) / 100;
+      /* cobertura comision Mercado Pago (6.60%) - se suma al unit_price para que
+         MP descuente su tarifa de aca y el organizador reciba integro */
+      const mpFeeUnidad = Math.round(precioOrgUnidad * (MP_CHECKOUT_FEE_PERCENT / 100) * 100) / 100;
+      const precioConServicio = Math.round((precioOrgUnidad + servicioFeeUnidad + mpFeeUnidad) * 100) / 100;
       mpItems.push({ id: tipo.id, title: tipo.nombre + (promoActiva ? ` (${promoRecibe}x${promoPaga})` : ''), quantity: item.cantidad, unit_price: precioConServicio, currency_id: 'ARS' });
-      itemsData.push({ ...item, _tipo: tipo, _precioOrg: precioOrgUnidad, _servicioFee: servicioFeeUnidad, _precioConServicio: precioConServicio, _qrsPorUnidad: qrsPorUnidad, _stockPorUnidad: stockPorUnidad });
+      itemsData.push({ ...item, _tipo: tipo, _precioOrg: precioOrgUnidad, _servicioFee: servicioFeeUnidad, _mpFee: mpFeeUnidad, _precioConServicio: precioConServicio, _qrsPorUnidad: qrsPorUnidad, _stockPorUnidad: stockPorUnidad });
     }
 
     if (!mpItems.length) return res.status(400).json({ ok: false, error: 'Sin items válidos' });

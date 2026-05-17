@@ -1599,9 +1599,10 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
       <div class="tk-tp" id="ticket-row-v" style="display:none"><div><div class="tk-nm" id="ticket-name-v">VIP</div></div><div class="qty"><button class="qty-btn" onclick="QQ('v',-1)">-</button><span class="qty-n" id="q-v">0</span><button class="qty-btn" onclick="QQ('v',1)">+</button></div><div id="ticket-price-v" style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--s);flex-shrink:0">$0</div></div>
       <div class="compra-res">
         <div class="cr"><span class="cr-l">Subtotal entradas</span><span class="cr-v" id="cr-base">$0</span></div>
-        <div class="cr" id="cr-servicio-row" style="display:none"><span class="cr-l" title="Comisión de la plataforma">Servicio EntradasJujuy (10%)</span><span class="cr-v" id="cr-servicio">$0</span></div>
+        <div class="cr" id="cr-servicio-row" style="display:none"><span class="cr-l" title="Comisión de la plataforma">Servicio EntradasJujuy (6%)</span><span class="cr-v" id="cr-servicio">$0</span></div>
+        <div class="cr" id="cr-mp-row" style="display:none"><span class="cr-l" title="Comisión del procesador de pagos">Comisión Mercado Pago (6,60%)</span><span class="cr-v" id="cr-mp">$0</span></div>
         <div class="cr"><span class="cr-l" style="font-weight:500;color:var(--t2)">Total a pagar</span><span class="cr-v tot" id="cr-tot">$0</span></div>
-        <div id="cr-info-servicio" style="display:none;font-size:11px;color:var(--t3);margin-top:8px;padding:8px 10px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.18);border-radius:8px;line-height:1.4">El servicio EntradasJujuy se suma sobre el valor de la entrada y nos permite mantener la plataforma. El organizador recibe íntegro el precio publicado.</div>
+        <div id="cr-info-servicio" style="display:none;font-size:11px;color:var(--t3);margin-top:8px;padding:8px 10px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.18);border-radius:8px;line-height:1.4">Pagás el valor de la entrada + 6% de servicio EntradasJujuy + 6,60% de comisión Mercado Pago. Así el organizador recibe íntegro el precio publicado.</div>
       </div>
       <!-- Formulario del comprador -->
       <div id="form-comprador" style="margin-top:16px;display:none">
@@ -1692,22 +1693,28 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
           <input type="range" id="calc-range" min="500" max="50000" step="500" value="5000"
             style="width:100%;accent-color:var(--t);margin-bottom:14px"
             oninput="calcGanancia(this.value)">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center">
             <div style="background:var(--bg3);border-radius:var(--rs);padding:10px">
               <div style="font-size:9px;color:var(--t3);margin-bottom:4px;letter-spacing:.5px">Comprador paga</div>
               <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--t1)" id="calc-total">$5.000</div>
             </div>
             <div style="background:rgba(61,170,106,0.08);border:1px solid rgba(61,170,106,0.2);border-radius:var(--rs);padding:10px">
               <div style="font-size:9px;color:var(--t3);margin-bottom:4px;letter-spacing:.5px">Vos recibís</div>
-              <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--g)" id="calc-neto">$4.500</div>
-            </div>
-            <div style="background:rgba(196,105,43,0.06);border:1px solid rgba(196,105,43,0.15);border-radius:var(--rs);padding:10px">
-              <div style="font-size:9px;color:var(--t3);margin-bottom:4px;letter-spacing:.5px">Comisión EJ</div>
-              <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--t)" id="calc-com">$0</div>
+              <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--g)" id="calc-neto">$5.000</div>
             </div>
           </div>
-          <div style="font-size:10px;color:var(--t4);margin-top:10px;text-align:center">
-            Estimacion antes de costos de Mercado Pago
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;margin-top:8px">
+            <div style="background:rgba(196,105,43,0.06);border:1px solid rgba(196,105,43,0.15);border-radius:var(--rs);padding:10px">
+              <div style="font-size:9px;color:var(--t3);margin-bottom:4px;letter-spacing:.5px">Servicio EJ (6%)</div>
+              <div style="font-family:'Fraunces',serif;font-size:14px;font-weight:700;color:var(--t)" id="calc-com">$0</div>
+            </div>
+            <div style="background:rgba(0,150,255,0.06);border:1px solid rgba(0,150,255,0.18);border-radius:var(--rs);padding:10px">
+              <div style="font-size:9px;color:var(--t3);margin-bottom:4px;letter-spacing:.5px">Comisión MP (6,60%)</div>
+              <div style="font-family:'Fraunces',serif;font-size:14px;font-weight:700;color:var(--t)" id="calc-mp">$0</div>
+            </div>
+          </div>
+          <div style="font-size:10px;color:var(--t4);margin-top:10px;text-align:center;line-height:1.5">
+            Recibís íntegro tu precio publicado. El comprador asume el 6% de la plataforma + el 6,60% que cobra Mercado Pago.
           </div>
         </div>
       </div>
@@ -1748,10 +1755,11 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
           <button type="button" id="btn-agregar-tipo" onclick="agregarTipoEntrada()" style="width:100%;height:42px;border:1px dashed var(--b2);border-radius:10px;background:none;color:var(--t);font-size:13px;cursor:pointer;font-family:Outfit,sans-serif;margin-bottom:14px">+ Agregar otro tipo de entrada</button>
           <div class="fee-box" id="precio-resumen-box">
             <div class="fee-ti">Resumen para el comprador</div>
-            <div class="fee-desc" style="margin-bottom:8px">EntradasJujuy le suma 10% al precio publicado. El organizador recibe íntegro el monto que puso.</div>
+            <div class="fee-desc" style="margin-bottom:8px">Al precio publicado se le suma 6% de servicio EntradasJujuy + 6,60% de comisión Mercado Pago. Así recibís íntegro el monto que pusiste.</div>
             <div class="fee-prev">
               <div class="fp"><span class="fp-l">Total que recibís (por entrada base)</span><span class="fp-v ok" id="fpb">$0</span></div>
-              <div class="fp"><span class="fp-l">Servicio EntradasJujuy (10%)</span><span class="fp-v" style="color:var(--t3)" id="fpc">$0</span></div>
+              <div class="fp"><span class="fp-l">Servicio EntradasJujuy (6%)</span><span class="fp-v" style="color:var(--t3)" id="fpc">$0</span></div>
+              <div class="fp"><span class="fp-l">Comisión Mercado Pago (6,60%)</span><span class="fp-v" style="color:var(--t3)" id="fpmp">$0</span></div>
               <div class="fp"><span class="fp-l" style="font-weight:500;color:var(--t2)">Total que paga el comprador</span><span class="fp-v tot" id="fpt">$0</span></div>
             </div>
           </div>
@@ -1764,6 +1772,48 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
     <div id="org-cobros" class="is">
       <div class="fsec">
         <h2>Cobros</h2><p class="fsec-desc">Historial de pagos via Mercado Pago</p>
+
+        <!-- Info: estructura de comisiones -->
+        <div style="background:var(--bg2);border:1px solid var(--b1);border-radius:var(--r);padding:14px;margin-bottom:12px">
+          <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px">Cómo se reparte el cobro</div>
+          <div style="font-size:13px;color:var(--t2);line-height:1.5;margin-bottom:10px">
+            Vos cobrás <strong style="color:var(--g)">el 100% del precio publicado</strong>. El comprador paga aparte:
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div style="background:rgba(196,105,43,0.06);border:1px solid rgba(196,105,43,0.15);border-radius:var(--rs);padding:10px">
+              <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Servicio EntradasJujuy</div>
+              <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--t)">6%</div>
+              <div style="font-size:10px;color:var(--t4);margin-top:4px">va a la plataforma</div>
+            </div>
+            <div style="background:rgba(0,150,255,0.06);border:1px solid rgba(0,150,255,0.18);border-radius:var(--rs);padding:10px">
+              <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Comisión Mercado Pago</div>
+              <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--t)">6,60%</div>
+              <div style="font-size:10px;color:var(--t4);margin-top:4px">la descuenta MP de tu parte</div>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--t3);line-height:1.5">
+            Ejemplo: si publicás una entrada a <strong>$10.000</strong>, el comprador paga <strong>$11.260</strong>, EntradasJujuy se queda con <strong>$600</strong>, Mercado Pago te descuenta <strong>~$660</strong> y vos recibís <strong style="color:var(--g)">$10.000</strong>.
+          </div>
+        </div>
+
+        <!-- Info: configurar MP para que el dinero llegue al instante -->
+        <div style="background:rgba(0,150,255,0.04);border:1px solid rgba(0,150,255,0.2);border-radius:var(--r);padding:14px;margin-bottom:12px">
+          <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:8px">Importante · Liberación de fondos</div>
+          <div style="font-size:13px;color:var(--t2);line-height:1.5;margin-bottom:10px">
+            Por defecto Mercado Pago puede retener tu dinero hasta 14 días. Para recibirlo <strong>al instante</strong> tenés que configurarlo en tu cuenta:
+          </div>
+          <ol style="font-size:12px;color:var(--t2);line-height:1.7;padding-left:20px;margin:0 0 10px 0">
+            <li>Entrá a <strong>Mercado Pago</strong> con tu cuenta de organizador.</li>
+            <li>Andá a <strong>Tu negocio → Configuración → Cobros</strong> (o buscá "Liberación de dinero").</li>
+            <li>En "Plazo para acreditar el dinero" elegí <strong>"Al momento"</strong> o <strong>"Inmediato"</strong>.</li>
+            <li>Confirmá. A partir de ahí, cada venta cae a tu cuenta apenas se aprueba el pago.</li>
+          </ol>
+          <div style="font-size:11px;color:var(--t4);line-height:1.5">
+            Tip: Mercado Pago puede cobrar una pequeña tarifa extra por liberar el dinero al instante. Está incluida en el 6,60% que paga el comprador.
+          </div>
+          <a href="https://www.mercadopago.com.ar/ayuda/configurar-plazo-acreditacion_4096" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font-size:12px;color:var(--s);text-decoration:none;font-weight:600">Ver guía oficial de Mercado Pago →</a>
+        </div>
+
         <div class="empty-state" style="padding:14px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px">Todavía no hay cobros. Acá se mostrarán las ventas aprobadas.</div>
       </div>
     </div>
@@ -2051,12 +2101,16 @@ function srvGO(sid,tabEl){
    ========================================== */
 function calcGanancia(val){
   const precio = parseInt(val);
-  const com = Math.round(precio * 0.10);
-  const neto = precio - com;
+  /* el organizador recibe íntegro su precio; el comprador suma 6% EJ + 6,60% MP */
+  const com = Math.round(precio * 0.06);
+  const mp  = Math.round(precio * 0.066);
+  const totalComprador = precio + com + mp;
   document.getElementById('calc-precio').textContent = '$' + precio.toLocaleString('es-AR');
-  document.getElementById('calc-neto').textContent = '$' + neto.toLocaleString('es-AR');
-  document.getElementById('calc-com').textContent = '$' + com.toLocaleString('es-AR');
-  document.getElementById('calc-total').textContent = '$' + precio.toLocaleString('es-AR');
+  document.getElementById('calc-neto').textContent  = '$' + precio.toLocaleString('es-AR');
+  document.getElementById('calc-com').textContent   = '$' + com.toLocaleString('es-AR');
+  var mpEl = document.getElementById('calc-mp');
+  if(mpEl) mpEl.textContent = '$' + mp.toLocaleString('es-AR');
+  document.getElementById('calc-total').textContent = '$' + totalComprador.toLocaleString('es-AR');
 }
 
 /* ==========================================
@@ -2173,15 +2227,20 @@ function QQ(t,d){
   QV[t]=Math.max(0,QV[t]+d);
   document.getElementById('q-'+t).textContent=QV[t];
   const base=QV.g*PV.g+QV.p*PV.p+QV.v*PV.v;
-  /* servicio EntradasJujuy: 10% sobre el precio del organizador, lo paga el comprador */
-  const servicio = Math.round(base*0.10);
-  const total = base + servicio;
+  /* servicio EntradasJujuy (6%) + cobertura comisión Mercado Pago (6,60%) — lo paga el comprador */
+  const servicio = Math.round(base*0.06);
+  const mpFee = Math.round(base*0.066);
+  const total = base + servicio + mpFee;
   document.getElementById('cr-base').textContent='$'+base.toLocaleString('es-AR');
   var srvRow = document.getElementById('cr-servicio-row');
   var srvInfo = document.getElementById('cr-info-servicio');
   var srvVal = document.getElementById('cr-servicio');
+  var mpRow = document.getElementById('cr-mp-row');
+  var mpVal = document.getElementById('cr-mp');
   if(srvVal) srvVal.textContent='$'+servicio.toLocaleString('es-AR');
+  if(mpVal) mpVal.textContent='$'+mpFee.toLocaleString('es-AR');
   if(srvRow) srvRow.style.display = base > 0 ? 'flex' : 'none';
+  if(mpRow) mpRow.style.display = base > 0 ? 'flex' : 'none';
   if(srvInfo) srvInfo.style.display = base > 0 ? 'block' : 'none';
   document.getElementById('cr-tot').textContent='$'+total.toLocaleString('es-AR');
   // Mostrar formulario si hay al menos 1 entrada
@@ -2484,12 +2543,15 @@ function mostrarError(msg){
    FEE PREVIEW (solo org)
    ========================================== */
 function calcFee(){
-  /* Servicio EntradasJujuy: 10% sobre el precio base, lo paga el comprador */
+  /* Sobre el precio base se le suma al comprador: 6% servicio EJ + 6,60% comisión MP.
+     El organizador recibe íntegro el precio base. */
   const p=parseInt(document.getElementById('pb')?.value)||0;
-  const servicio=Math.round(p*0.10);
-  const totalComprador=p+servicio;
+  const servicio=Math.round(p*0.06);
+  const mpFee=Math.round(p*0.066);
+  const totalComprador=p+servicio+mpFee;
   const fpb=document.getElementById('fpb'); if(fpb) fpb.textContent='$'+p.toLocaleString('es-AR');
   const fpc=document.getElementById('fpc'); if(fpc) fpc.textContent='$'+servicio.toLocaleString('es-AR');
+  const fpmp=document.getElementById('fpmp'); if(fpmp) fpmp.textContent='$'+mpFee.toLocaleString('es-AR');
   const fpt=document.getElementById('fpt'); if(fpt) fpt.textContent='$'+totalComprador.toLocaleString('es-AR');
 }
 function toggleFee(){
@@ -2734,7 +2796,7 @@ var _googleReady = false;
 var _googleInitAttempts = 0;
 var _googleAuthBusy = false;
 var _backendWarmupPromise = null;
-var _mpStatus = { connected: false, marketplace_fee_percent: 10 };
+var _mpStatus = { connected: false, marketplace_fee_percent: 6, checkout_fee_percent: 6.60 };
 
 window.addEventListener('load', function(){
   var token = localStorage.getItem('ej-token');
@@ -3793,7 +3855,7 @@ function actualizarMercadoPagoCard(status){
   var publishTitle = document.getElementById('mp-publish-title');
   var publishDesc = document.getElementById('mp-publish-desc');
   var publishBtn = document.getElementById('mp-publish-connect-btn');
-  var fee = Number(status.marketplace_fee_percent || 10);
+  var fee = Number(status.marketplace_fee_percent || 6);
   var feeText = fee > 0 ? 'Comisión de plataforma activa.' : 'Comisión de plataforma: 0%.';
   if(card && title && desc && btn && status.connected){
     card.classList.add('ok');
