@@ -256,21 +256,60 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .hdr-3{width:min(730px,182vw);height:min(730px,182vw);border-color:rgba(196,105,43,0.07);animation:hdr-pulse 5s ease-in-out infinite 1.8s}
 @keyframes hdr-pulse{0%,100%{opacity:.5;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.025)}}
 .hero-deco-corner{position:absolute;width:28px;height:28px;pointer-events:none}
-/* == HERO-FLYERS (carousel grande) == */
-.hero.hero-flyers{min-height:auto;padding:0;display:block;background:var(--bg);text-align:initial}
-.hero-flyers-head{padding:24px 20px 6px;text-align:center}
-.hero-flyers-head .eyebrow{margin-bottom:12px}
-.hero-flyers-head .hero-h1{font-size:clamp(40px,12vw,72px);margin:6px 0 0}
-.hero.hero-flyers .flyer-track{padding:18px 16px 8px;gap:14px}
-.hero.hero-flyers .flyer-card{flex:0 0 82%;max-width:380px;min-height:480px;border:1px solid rgba(196,105,43,.22);border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.55)}
-.hero.hero-flyers .flyer-name{font-size:22px}
-.hero.hero-flyers .flyer-cta{height:38px;font-size:12px;padding:0 18px}
-.hero-cta-wrap{display:flex;flex-direction:column;gap:10px;padding:8px 20px 24px}
+/* == HERO FLYERS — flyers flotantes (estudio de diseño) ==
+   El flyer es el único elemento visible. Sin marco, sin overlay, sin texto.
+   La sombra crea profundidad; el border-radius mantiene la proporción editorial. */
+.hero.hero-flyers{
+  min-height:auto;padding:0;display:block;background:var(--bg);text-align:initial;
+  position:relative;overflow:hidden;
+}
+/* leve vignette superior/inferior para integrar con la nav y la sección siguiente */
+.hero.hero-flyers::before,
+.hero.hero-flyers::after{
+  content:'';position:absolute;left:0;right:0;height:40px;pointer-events:none;z-index:3;
+}
+.hero.hero-flyers::before{top:0;background:linear-gradient(to bottom, var(--bg), transparent)}
+.hero.hero-flyers::after{bottom:0;background:linear-gradient(to top, var(--bg), transparent)}
+.hero.hero-flyers .flyer-track{
+  padding:36px 16px 36px;gap:16px;
+  scroll-padding-left:16px;
+}
+.hero.hero-flyers .flyer-card{
+  flex:0 0 78%;max-width:360px;
+  aspect-ratio:4/5;min-height:0;
+  border:none !important;
+  background:transparent !important;
+  border-radius:18px;
+  box-shadow:
+    0 30px 70px -12px rgba(0,0,0,.7),
+    0 0 0 1px rgba(255,255,255,.04);
+  transition:transform .35s ease, box-shadow .35s ease;
+  cursor:pointer;
+}
+.hero.hero-flyers .flyer-card:hover{
+  transform:translateY(-4px);
+  box-shadow:
+    0 40px 90px -10px rgba(0,0,0,.85),
+    0 0 0 1px rgba(255,255,255,.06);
+}
+.hero.hero-flyers .flyer-img{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  filter:none;border-radius:18px;
+}
+/* sin overlay de texto: el flyer comunica solo */
+.hero.hero-flyers .flyer-info{display:none}
+/* sin placeholder feo: si no hay flyer, no se muestra (JS filtra) */
+.hero.hero-flyers .flyer-placeholder{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,#1c1209 0%,#0b0703 100%);
+  border-radius:18px;
+}
+.hero.hero-flyers .flyer-placeholder span{
+  font-size:10px;letter-spacing:2.4px;text-transform:uppercase;color:rgba(255,255,255,.35);text-align:center;
+}
 @media(min-width:768px){
-  .hero.hero-flyers .flyer-card{flex:0 0 360px;min-height:540px}
-  .hero-flyers-head{padding:36px 40px 12px}
-  .hero-cta-wrap{flex-direction:row;padding:12px 40px 32px;justify-content:center}
-  .hero-cta-wrap .btnp,.hero-cta-wrap .btng{width:auto}
+  .hero.hero-flyers .flyer-track{padding:48px 40px 48px;gap:22px;scroll-padding-left:40px}
+  .hero.hero-flyers .flyer-card{flex:0 0 340px;max-width:340px}
 }
 /* == FLYER MINI (en destacados) == */
 .flyer-track-mini{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 0 14px;margin-bottom:14px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
@@ -1298,15 +1337,7 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
 
     <!-- HERO con arte jujeño -->
     <section class="hero hero-flyers">
-      <div class="hero-flyers-head">
-        <div class="eyebrow"><span class="ey-dot"></span>Ticketera y guía cultural de Jujuy</div>
-        <h1 class="hero-h1"><span class="top">Entradas</span><span class="jujuy">Jujuy</span></h1>
-      </div>
       <div class="flyer-track" id="flyer-track"></div>
-      <div class="hero-cta-wrap">
-        <button class="btnp t" onclick="document.getElementById('sec-ev').scrollIntoView({behavior:'smooth'})">Ver todos los eventos</button>
-        <button class="btng" onclick="GOI('publico','guia')">Explorar Jujuy</button>
-      </div>
     </section>
 
     <div class="hero-stats">
@@ -4132,7 +4163,7 @@ function renderFlyerMarketing(){
     if(trackMini) trackMini.innerHTML = empty;
     return;
   }
-  var htmlOutput = items.map(function(ev){
+  function buildCard(ev){
     var meta = [formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' · ');
     var img = ev.flyer ? '<img class="flyer-img" src="'+ev.flyer+'" alt="Flyer de '+escapeHtml(ev.name)+'">' : '<div class="flyer-placeholder"><span>Flyer pendiente</span></div>';
     var click = ev.id ? 'seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)' : 'GOI(&quot;publico&quot;,&quot;compra&quot;)';
@@ -4141,9 +4172,14 @@ function renderFlyerMarketing(){
       '<div class="flyer-name">'+escapeHtml(ev.name)+'</div>'+
       '<div class="flyer-meta">'+escapeHtml(meta || 'Próximamente')+'<br>'+escapeHtml(ev.price || '')+'</div>'+
       '<button class="flyer-cta">Ver evento</button></div></article>';
-  }).join('');
-  if(track) track.innerHTML = htmlOutput;
-  if(trackMini) trackMini.innerHTML = htmlOutput;
+  }
+  /* Hero: solo eventos con flyer real (el carousel es 100% visual) */
+  var itemsHero = items.filter(function(ev){ return !!ev.flyer; });
+  var heroHtml = itemsHero.length ? itemsHero.map(buildCard).join('') : items.map(buildCard).join('');
+  /* Mini en destacados: todos los items con su info */
+  var miniHtml = items.map(buildCard).join('');
+  if(track) track.innerHTML = heroHtml;
+  if(trackMini) trackMini.innerHTML = miniHtml;
 }
 
 function startFlyerWheel(){
