@@ -2442,7 +2442,10 @@ async function enviarEmail(orden, entradas) {
   console.log('[EMAIL] Enviado a:', orden.comprador_email);
 }
  
-/* Migracion automatica de schema al arrancar: agrega columnas nuevas si faltan */
+/* Migracion automatica de schema al arrancar: agrega columnas nuevas si faltan.
+   NO contiene lógica de borrado de eventos — eso era un error que se ejecutaba
+   en cada deploy. Si en el futuro hay que borrar un evento, debe hacerse a mano
+   por SQL una sola vez, no acá. */
 async function autoMigrate(){
   try {
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS hora_limite TIME`);
@@ -2452,50 +2455,6 @@ async function autoMigrate(){
     console.log('[MIGRATE] Schema actualizado');
   } catch(err){
     console.error('[MIGRATE] Error:', err.message);
-  }
-  /* Limpieza one-time: eliminar eventos de prueba */
-  await borrarEventoDePrueba('pueblo encanto');
-  await borrarEventoDePrueba('prueba 05');
-  await borrarEventoDePrueba('prueba 5');
-  await borrarEventoDePrueba('prueba 07');
-  await borrarEventoDePrueba('prueba 7');
-  await borrarEventoDePrueba('pruba 07');
-  await borrarEventoDePrueba('pruba 7');
-  await borrarEventoDePrueba('prueba 007');
-  await borrarEventoDePrueba('pruba 007');
-  await borrarEventoDePrueba('folclore en el valle');
-  await borrarEventoDePrueba('folklore en el valle');
-}
-
-async function borrarEventoDePrueba(patron){
-  const client = await db.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows: ev } = await client.query(
-      `SELECT id, nombre FROM eventos WHERE LOWER(nombre) ILIKE $1`,
-      [`%${patron}%`]
-    );
-    if (!ev.length) { await client.query('ROLLBACK'); return; }
-    const evIds = ev.map(r => r.id);
-    const { rows: ord } = await client.query(
-      'SELECT id FROM ordenes WHERE evento_id = ANY($1::uuid[])',
-      [evIds]
-    );
-    const ordIds = ord.map(r => r.id);
-    if (ordIds.length) {
-      await client.query('DELETE FROM entradas WHERE orden_id = ANY($1::uuid[])', [ordIds]);
-      await client.query('DELETE FROM orden_items WHERE orden_id = ANY($1::uuid[])', [ordIds]);
-      await client.query('DELETE FROM ordenes WHERE id = ANY($1::uuid[])', [ordIds]);
-    }
-    await client.query('DELETE FROM tipos_entrada WHERE evento_id = ANY($1::uuid[])', [evIds]);
-    await client.query('DELETE FROM eventos WHERE id = ANY($1::uuid[])', [evIds]);
-    await client.query('COMMIT');
-    console.log(`[CLEANUP] Borrados ${ev.length} eventos de prueba: ${ev.map(e=>e.nombre).join(', ')}`);
-  } catch(err){
-    await client.query('ROLLBACK').catch(()=>{});
-    console.error('[CLEANUP] Error:', err.message);
-  } finally {
-    client.release();
   }
 }
 
