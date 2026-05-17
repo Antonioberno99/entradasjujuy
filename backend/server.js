@@ -1699,6 +1699,8 @@ app.post('/api/organizador/entradas-regalo', requireAuth, async (req, res) => {
   const email = normalizeEmail(req.body?.email || req.body?.comprador_email);
   const dni = String(req.body?.dni || '').replace(/\D/g, '').slice(0, 12);
   const cantidad = Math.min(20, Math.max(1, parseInt(req.body?.cantidad || '1', 10) || 1));
+  /* Mensaje personalizado del organizador para el invitado (opcional, máx 280 chars) */
+  const mensajeRaw = String(req.body?.mensaje || '').trim().slice(0, 280);
 
   if (!eventoId) return res.status(400).json({ ok: false, error: 'Selecciona un evento' });
   if (!nombre) return res.status(400).json({ ok: false, error: 'Ingresa el nombre del invitado' });
@@ -1768,7 +1770,15 @@ app.post('/api/organizador/entradas-regalo', requireAuth, async (req, res) => {
       ...entrada,
       qrDataUrl: await makeTicketQr(entrada.token),
     })));
-    const orden = { id: ordenId, comprador_email: email, comprador_nombre: nombre, comprador_dni: dni, estado: 'cortesia' };
+    const orden = {
+      id: ordenId,
+      comprador_email: email,
+      comprador_nombre: nombre,
+      comprador_dni: dni,
+      estado: 'cortesia',
+      mensaje_invitacion: mensajeRaw || '',
+      organizador_nombre: req.user.nombre || '',
+    };
     let emailSent = false;
     let emailError = null;
     if (SMTP_USER && SMTP_PASS) {
@@ -2368,19 +2378,37 @@ async function enviarEmail(orden, entradas) {
   `;
   }).join('');
  
+  /* Mensaje personalizado del organizador (solo cortesía) — escape simple anti-XSS */
+  const mensajeInvitacion = String(orden.mensaje_invitacion || '').trim()
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const organizadorNombre = String(orden.organizador_nombre || '').trim()
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const mensajeBox = esCortesia && mensajeInvitacion
+    ? `<div style="background:linear-gradient(135deg,#fff5e6,#fff);border:1px solid #ffd49a;border-left:4px solid #C4692B;border-radius:10px;padding:16px;margin:0 0 20px">
+         <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#a05a10;margin-bottom:8px;font-weight:700">Mensaje${organizadorNombre ? ' de ' + organizadorNombre : ' del organizador'}</div>
+         <div style="font-size:14px;line-height:1.55;color:#3d342a;font-style:italic">"${mensajeInvitacion}"</div>
+       </div>`
+    : '';
+
+  const saludoCortesia = organizadorNombre
+    ? `te enviaron entradas de cortesía${organizadorNombre ? ' desde ' + organizadorNombre : ''}.`
+    : 'te enviaron entradas de cortesía.';
+
   await sendMailResilient({
     from: MAIL_FROM,
     to: orden.comprador_email,
-    subject: `${esCortesia ? 'Tus entradas de cortesia' : 'Tus entradas'} - ${entradas[0]?.evento}`,
+    subject: `${esCortesia ? '🎟 Te invitaron a' : 'Tus entradas'} - ${entradas[0]?.evento}`,
     text: esCortesia
-      ? `Hola ${orden.comprador_nombre}. Te enviaron entradas de cortesia. Adjuntamos tus QR para ingresar al evento. Tambien podes recuperarlas desde tu cuenta en ${FRONTEND_URL}.`
-      : `Hola ${orden.comprador_nombre}. Tu compra fue confirmada. Adjuntamos tus QR para ingresar al evento. Tambien podes recuperar tus entradas desde tu cuenta en ${FRONTEND_URL}.`,
-    html: `<div style="max-width:500px;margin:0 auto;font-family:Arial,sans-serif">
-      <div style="background:#0a0704;padding:20px;text-align:center;border-radius:8px 8px 0 0">
-        <h1 style="color:#C4692B;margin:0">Entradas<span style="color:#3A6FA0">Jujuy</span></h1>
+      ? `Hola ${orden.comprador_nombre}. ${saludoCortesia}${mensajeInvitacion ? `\n\nMensaje${organizadorNombre ? ' de '+organizadorNombre : ''}: "${mensajeInvitacion}"\n` : ''}\nAdjuntamos tus QR para ingresar al evento. También podés recuperarlas desde tu cuenta en ${FRONTEND_URL}.`
+      : `Hola ${orden.comprador_nombre}. Tu compra fue confirmada. Adjuntamos tus QR para ingresar al evento. También podés recuperar tus entradas desde tu cuenta en ${FRONTEND_URL}.`,
+    html: `<div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif">
+      <div style="background:#0a0704;padding:22px;text-align:center;border-radius:10px 10px 0 0">
+        <h1 style="color:#C4692B;margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px">Entradas<span style="color:#3A6FA0">Jujuy</span></h1>
+        ${esCortesia ? '<div style="color:#9A8670;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:6px">🎟 Invitación de cortesía</div>' : ''}
       </div>
-      <div style="padding:24px;background:#fff">
-        <p>Hola <strong>${orden.comprador_nombre}</strong>, ${esCortesia ? 'te enviaron entradas de cortesia.' : 'tu compra fue confirmada.'}</p>
+      <div style="padding:24px;background:#fff;border-left:1px solid #eadfd3;border-right:1px solid #eadfd3">
+        <p style="margin:0 0 14px;font-size:15px;color:#1f1a14;line-height:1.5">Hola <strong>${orden.comprador_nombre}</strong>, ${esCortesia ? saludoCortesia : 'tu compra fue confirmada.'}</p>
+        ${mensajeBox}
         ${qrHtml}
       </div>
     </div>`,

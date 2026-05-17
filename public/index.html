@@ -2658,6 +2658,7 @@ function chipSel(el,cls){
   <div class="fg-row"><div class="fg"><label class="fl">Tipo de entrada</label><select class="fi-sel" id="gift-ticket"><option value="">General</option></select></div><div class="fg"><label class="fl">Cantidad</label><input class="fi" id="gift-qty" type="number" min="1" max="20" value="1"></div></div>
   <div class="fg"><label class="fl">Nombre del invitado</label><input class="fi" id="gift-name" type="text" placeholder="Nombre y apellido"></div>
   <div class="fg-row"><div class="fg"><label class="fl">Email</label><input class="fi" id="gift-email" type="email" placeholder="invitado@email.com"></div><div class="fg"><label class="fl">DNI (opcional)</label><input class="fi" id="gift-dni" type="text" inputmode="numeric" placeholder="Sin puntos"></div></div>
+  <div class="fg"><label class="fl">Mensaje personal <span style="color:var(--t3);font-weight:300">(opcional)</span></label><textarea class="fi-area" id="gift-mensaje" placeholder="Ej: ¡Te invito a mi peña! No faltes 🎵" maxlength="280" style="min-height:64px"></textarea><div style="font-size:11px;color:var(--t3);margin-top:4px">Aparece destacado en el email del invitado. Máximo 280 caracteres.</div></div>
   <button class="btn-sub c" id="gift-submit" onclick="enviarEntradasRegalo(event)" style="margin-top:4px">Generar y enviar QR</button>
   <div class="publish-note" id="gift-note" style="margin-top:8px"></div>
 </div>
@@ -3995,7 +3996,8 @@ async function enviarEntradasRegalo(event){
     cantidad: document.getElementById('gift-qty')?.value || '1',
     nombre: document.getElementById('gift-name')?.value.trim() || '',
     email: document.getElementById('gift-email')?.value.trim() || '',
-    dni: document.getElementById('gift-dni')?.value.trim() || ''
+    dni: document.getElementById('gift-dni')?.value.trim() || '',
+    mensaje: (document.getElementById('gift-mensaje')?.value || '').trim().slice(0, 280)
   };
   if(note){ note.style.color = 'var(--t3)'; note.textContent = 'Generando entradas de cortesía...'; }
   if(btn){ btn.disabled = true; btn.textContent = 'Generando...'; }
@@ -4889,7 +4891,7 @@ function prepararRegaloEvento(eventId){
   if(sel){ sel.value = String(eventId); actualizarTiposRegalo(); }
   var nombreEl = document.getElementById('gift-modal-evento-nombre');
   if(nombreEl) nombreEl.textContent = ev ? (ev.name || '') : '';
-  ['gift-name','gift-email','gift-dni'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
+  ['gift-name','gift-email','gift-dni','gift-mensaje'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
   var qty = document.getElementById('gift-qty');
   if(qty) qty.value = '1';
   var note = document.getElementById('gift-note');
