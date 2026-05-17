@@ -2281,6 +2281,7 @@ async function autoMigrate(){
   await borrarEventoDePrueba('prueba 7');
   await borrarEventoDePrueba('pruba 07');
   await borrarEventoDePrueba('pruba 7');
+  await borrarEventoDePrueba('007');
 }
 
 async function borrarEventoDePrueba(patron){
