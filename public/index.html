@@ -256,6 +256,36 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .hdr-3{width:min(730px,182vw);height:min(730px,182vw);border-color:rgba(196,105,43,0.07);animation:hdr-pulse 5s ease-in-out infinite 1.8s}
 @keyframes hdr-pulse{0%,100%{opacity:.5;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.025)}}
 .hero-deco-corner{position:absolute;width:28px;height:28px;pointer-events:none}
+/* == HERO-FLYERS (carousel grande) == */
+.hero.hero-flyers{min-height:auto;padding:0;display:block;background:var(--bg);text-align:initial}
+.hero-flyers-head{padding:24px 20px 6px;text-align:center}
+.hero-flyers-head .eyebrow{margin-bottom:12px}
+.hero-flyers-head .hero-h1{font-size:clamp(40px,12vw,72px);margin:6px 0 0}
+.hero.hero-flyers .flyer-track{padding:18px 16px 8px;gap:14px}
+.hero.hero-flyers .flyer-card{flex:0 0 82%;max-width:380px;min-height:480px;border:1px solid rgba(196,105,43,.22);border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.55)}
+.hero.hero-flyers .flyer-name{font-size:22px}
+.hero.hero-flyers .flyer-cta{height:38px;font-size:12px;padding:0 18px}
+.hero-cta-wrap{display:flex;flex-direction:column;gap:10px;padding:8px 20px 24px}
+@media(min-width:768px){
+  .hero.hero-flyers .flyer-card{flex:0 0 360px;min-height:540px}
+  .hero-flyers-head{padding:36px 40px 12px}
+  .hero-cta-wrap{flex-direction:row;padding:12px 40px 32px;justify-content:center}
+  .hero-cta-wrap .btnp,.hero-cta-wrap .btng{width:auto}
+}
+/* == FLYER MINI (en destacados) == */
+.flyer-track-mini{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 0 14px;margin-bottom:14px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.flyer-track-mini::-webkit-scrollbar{display:none}
+.flyer-track-mini .flyer-card{flex:0 0 58%;max-width:210px;min-height:240px;scroll-snap-align:start;border:1px solid rgba(255,255,255,.10);border-radius:12px;overflow:hidden;position:relative;background:linear-gradient(145deg,#1b1209,#070503);box-shadow:0 10px 24px rgba(0,0,0,.35)}
+.flyer-track-mini .flyer-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.flyer-track-mini .flyer-info{position:absolute;left:0;right:0;bottom:0;padding:40px 10px 10px;background:linear-gradient(to top,rgba(10,7,4,.97) 0%,rgba(10,7,4,.85) 45%,transparent 100%)}
+.flyer-track-mini .flyer-cat{font-size:8px;letter-spacing:1.2px;margin-bottom:3px}
+.flyer-track-mini .flyer-name{font-size:13px;margin-bottom:3px}
+.flyer-track-mini .flyer-meta{font-size:10px}
+.flyer-track-mini .flyer-cta{display:none}
+@media(min-width:768px){
+  .flyer-track-mini .flyer-card{flex:0 0 200px;min-height:260px}
+}
+
 .hdc-tl{top:20px;left:20px;border-top:1.5px solid rgba(196,105,43,0.45);border-left:1.5px solid rgba(196,105,43,0.45)}
 .hdc-tr{top:20px;right:20px;border-top:1.5px solid rgba(196,105,43,0.45);border-right:1.5px solid rgba(196,105,43,0.45)}
 .hdc-bl{bottom:20px;left:20px;border-bottom:1.5px solid rgba(196,105,43,0.45);border-left:1.5px solid rgba(196,105,43,0.45)}
@@ -1267,25 +1297,15 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
   <div id="pub-main" class="is on">
 
     <!-- HERO con arte jujeño -->
-    <section class="hero">
-      <!-- Decoración CSS pura · sin imágenes -->
-      <div class="hero-deco" aria-hidden="true">
-        <div class="hero-deco-ring hdr-1"></div>
-        <div class="hero-deco-ring hdr-2"></div>
-        <div class="hero-deco-ring hdr-3"></div>
-        <div class="hero-deco-corner hdc-tl"></div>
-        <div class="hero-deco-corner hdc-tr"></div>
-        <div class="hero-deco-corner hdc-bl"></div>
-        <div class="hero-deco-corner hdc-br"></div>
-      </div>
-      <div class="hero-body">
+    <section class="hero hero-flyers">
+      <div class="hero-flyers-head">
         <div class="eyebrow"><span class="ey-dot"></span>Ticketera y guía cultural de Jujuy</div>
         <h1 class="hero-h1"><span class="top">Entradas</span><span class="jujuy">Jujuy</span></h1>
-        <p class="hero-sub">La única plataforma de entradas nacida en Jujuy. Comprás en segundos, el QR llega a tu mail.</p>
-        <div class="hero-btns">
-          <button class="btnp t" onclick="document.getElementById('sec-ev').scrollIntoView({behavior:'smooth'})">Ver eventos</button>
-          <button class="btng" onclick="GOI('publico','guia')">Explorar Jujuy</button>
-        </div>
+      </div>
+      <div class="flyer-track" id="flyer-track"></div>
+      <div class="hero-cta-wrap">
+        <button class="btnp t" onclick="document.getElementById('sec-ev').scrollIntoView({behavior:'smooth'})">Ver todos los eventos</button>
+        <button class="btng" onclick="GOI('publico','guia')">Explorar Jujuy</button>
       </div>
     </section>
 
@@ -1316,21 +1336,14 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
       </div>
     </div>
 
-    <!-- RULETA DE FLYERS -->
-    <section class="flyer-sec" id="flyer-marketing">
-      <div class="flyer-head">
-        <div><div class="flyer-ey">Marketing de eventos</div><div class="flyer-ti">Flyers destacados</div></div>
-        <div class="flyer-sub">Los organizadores pueden subir su flyer y aparecer en esta vidriera del portal principal.</div>
-      </div>
-      <div class="flyer-track" id="flyer-track"></div>
-    </section>
-
     <!-- EVENTOS -->
     <section class="sec" id="sec-ev">
       <div class="sec-top">
         <div><div class="sec-ey t">Destacados</div><h2 class="sec-ti">Eventos de Jujuy</h2></div>
         <button class="sec-link">Ver todos</button>
       </div>
+      <!-- Mini ruleta de flyers -->
+      <div class="flyer-track-mini" id="flyer-track-mini"></div>
       <!-- Badge de urgencia - técnica de conversión -->
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:8px 12px;background:rgba(196,105,43,0.07);border:1px solid rgba(196,105,43,0.18);border-radius:var(--rs)">
         <span style="width:6px;height:6px;border-radius:50%;background:var(--t);flex-shrink:0;animation:blink 2s ease-in-out infinite"></span>
@@ -4102,7 +4115,8 @@ function renderPublicEvents(events){
 
 function renderFlyerMarketing(){
   var track = document.getElementById('flyer-track');
-  if(!track) return;
+  var trackMini = document.getElementById('flyer-track-mini');
+  if(!track && !trackMini) return;
   var store = ejLoadStore();
   var items = store.events.filter(function(ev){ return ev.status !== 'draft'; });
   items.sort(function(a,b){
@@ -4113,10 +4127,12 @@ function renderFlyerMarketing(){
   });
   items = items.concat(defaultFlyerEvents());
   if(!items.length){
-    track.innerHTML = '<article class="flyer-card"><div class="flyer-placeholder"><span>Sin eventos publicados</span></div><div class="flyer-info"><div class="flyer-cat">EntradasJujuy</div><div class="flyer-name">La vidriera está lista</div><div class="flyer-meta">Los eventos reales aparecerán acá.</div></div></article>';
+    var empty = '<article class="flyer-card"><div class="flyer-placeholder"><span>Sin eventos publicados</span></div><div class="flyer-info"><div class="flyer-cat">EntradasJujuy</div><div class="flyer-name">La vidriera está lista</div><div class="flyer-meta">Los eventos reales aparecerán acá.</div></div></article>';
+    if(track) track.innerHTML = empty;
+    if(trackMini) trackMini.innerHTML = empty;
     return;
   }
-  track.innerHTML = items.map(function(ev){
+  var htmlOutput = items.map(function(ev){
     var meta = [formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' · ');
     var img = ev.flyer ? '<img class="flyer-img" src="'+ev.flyer+'" alt="Flyer de '+escapeHtml(ev.name)+'">' : '<div class="flyer-placeholder"><span>Flyer pendiente</span></div>';
     var click = ev.id ? 'seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)' : 'GOI(&quot;publico&quot;,&quot;compra&quot;)';
@@ -4126,18 +4142,23 @@ function renderFlyerMarketing(){
       '<div class="flyer-meta">'+escapeHtml(meta || 'Próximamente')+'<br>'+escapeHtml(ev.price || '')+'</div>'+
       '<button class="flyer-cta">Ver evento</button></div></article>';
   }).join('');
+  if(track) track.innerHTML = htmlOutput;
+  if(trackMini) trackMini.innerHTML = htmlOutput;
 }
 
 function startFlyerWheel(){
-  var track = document.getElementById('flyer-track');
-  if(!track || track.dataset.wheelStarted) return;
-  track.dataset.wheelStarted = '1';
-  setInterval(function(){
-    if(!track.matches(':hover')){
-      if(track.scrollLeft + track.clientWidth >= track.scrollWidth - 10) track.scrollTo({left:0, behavior:'smooth'});
-      else track.scrollBy({left:260, behavior:'smooth'});
-    }
-  }, 3600);
+  ['flyer-track','flyer-track-mini'].forEach(function(id){
+    var track = document.getElementById(id);
+    if(!track || track.dataset.wheelStarted) return;
+    track.dataset.wheelStarted = '1';
+    var step = id === 'flyer-track' ? 340 : 210;
+    setInterval(function(){
+      if(!track.matches(':hover')){
+        if(track.scrollLeft + track.clientWidth >= track.scrollWidth - 10) track.scrollTo({left:0, behavior:'smooth'});
+        else track.scrollBy({left:step, behavior:'smooth'});
+      }
+    }, 3600);
+  });
 }
 
 function leerCamposEvento(root){
