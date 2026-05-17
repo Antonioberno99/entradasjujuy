@@ -2447,6 +2447,8 @@ async function autoMigrate(){
   await borrarEventoDePrueba('pruba 7');
   await borrarEventoDePrueba('prueba 007');
   await borrarEventoDePrueba('pruba 007');
+  await borrarEventoDePrueba('folclore en el valle');
+  await borrarEventoDePrueba('folklore en el valle');
 }
 
 async function borrarEventoDePrueba(patron){
