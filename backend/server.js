@@ -630,16 +630,29 @@ async function sendVerificationEmail(user, token) {
   const message = {
     from: MAIL_FROM,
     to: user.email,
-    subject: 'Bienvenido a EntradasJujuy - verifica tu cuenta',
+    subject: '¡Bienvenido a EntradasJujuy! Verificá tu cuenta',
+    text: `Hola ${user.nombre}, bienvenido a EntradasJujuy. Verificá tu cuenta acá: ${verifyUrl}\n\nEntradasJujuy es la ticketera y guía cultural de Jujuy: comprás entradas en segundos, el QR llega a tu mail y podés explorar artistas, servicios y eventos locales.\n\nSi no creaste esta cuenta, ignorá este mensaje.`,
     html: `<div style="max-width:560px;margin:0 auto;font-family:Arial,sans-serif;color:#1f1a14">
-      <div style="background:#0a0704;padding:22px;text-align:center;border-radius:10px 10px 0 0">
-        <h1 style="color:#C4692B;margin:0">Entradas<span style="color:#3A6FA0">Jujuy</span></h1>
+      <div style="background:#0a0704;padding:26px;text-align:center;border-radius:12px 12px 0 0">
+        <h1 style="color:#C4692B;margin:0;font-size:28px;font-weight:900;letter-spacing:-.5px">Entradas<span style="color:#3A6FA0">Jujuy</span></h1>
+        <div style="color:#9A8670;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:6px">Ticketera y guía cultural de Jujuy</div>
       </div>
-      <div style="padding:26px;background:#fff;border:1px solid #eadfd3;border-top:0;border-radius:0 0 10px 10px">
-        <h2 style="margin:0 0 12px">Bienvenido, ${user.nombre}</h2>
-        <p style="line-height:1.55;margin:0 0 18px">Gracias por crear tu cuenta. Para comprar entradas, publicar eventos y usar EntradasJujuy, primero verifica tu email con este enlace seguro.</p>
-        <a href="${verifyUrl}" style="display:inline-block;background:#C4692B;color:#fff;text-decoration:none;padding:13px 18px;border-radius:8px;font-weight:700">Verificar mi cuenta</a>
-        <p style="font-size:12px;color:#7d7268;line-height:1.5;margin-top:20px">Este enlace vence en 24 horas. Si no creaste esta cuenta, podes ignorar este mensaje.</p>
+      <div style="padding:32px 28px;background:#fff;border:1px solid #eadfd3;border-top:0">
+        <h2 style="margin:0 0 14px;color:#0a0704;font-size:22px">¡Bienvenido, ${user.nombre}!</h2>
+        <p style="line-height:1.6;margin:0 0 18px;font-size:14px;color:#3d342a">Gracias por sumarte. Tu cuenta ya está creada — solo falta un paso: <strong>verificar que este email es tuyo</strong>. Tocá el botón:</p>
+        <div style="text-align:center;margin:24px 0">
+          <a href="${verifyUrl}" style="display:inline-block;background:#C4692B;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:700;font-size:14px;letter-spacing:.3px">Verificar mi cuenta</a>
+        </div>
+        <p style="font-size:11px;color:#7d7268;line-height:1.5;margin:0 0 18px;text-align:center">¿No funciona el botón? Pegá este link en tu navegador:<br><span style="color:#C4692B;word-break:break-all;font-size:10px">${verifyUrl}</span></p>
+      </div>
+      <div style="padding:20px 28px;background:#f9f5f0;border:1px solid #eadfd3;border-top:0;border-radius:0 0 12px 12px">
+        <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#7d6c52;margin-bottom:10px">Qué podés hacer con tu cuenta</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:#3d342a;line-height:1.7">
+          <li>Comprar entradas con QR enviado al instante a tu email</li>
+          <li>Publicar eventos y cobrar con Mercado Pago al instante</li>
+          <li>Descubrir artistas y servicios locales de Jujuy</li>
+        </ul>
+        <p style="font-size:11px;color:#9a8670;line-height:1.5;margin:18px 0 0">El enlace vence en 24 horas. Si no creaste esta cuenta, ignorá este mensaje.</p>
       </div>
     </div>`,
   };
@@ -790,14 +803,22 @@ app.post('/api/auth/registro', async (req, res) => {
       return res.status(409).json({ ok: false, error: 'Ya existe una cuenta con ese email' });
     }
 
+    /* Crear cuenta sin verificar — disparamos el email de bienvenida +
+       verificación. El usuario queda autenticado pero con email_verified=false
+       hasta que clickee el link. */
     const { rows } = await db.query(`
       INSERT INTO usuarios (nombre, email, password_hash, rol, auth_provider, email_verified)
-      VALUES ($1, $2, $3, $4, 'password', true)
+      VALUES ($1, $2, $3, $4, 'password', false)
       RETURNING id, nombre, email, rol, avatar_url, auth_provider, email_verified
     `, [nombre, email, hashPassword(password), rol]);
 
     const user = rows[0];
-    res.status(201).json(authPayload(user));
+    return respondWithVerificationEmail(
+      res,
+      user,
+      201,
+      'Cuenta creada. Te enviamos un email de bienvenida con el link de verificación. Revisá tu Gmail (y la carpeta de spam por las dudas).'
+    );
   } catch (err) {
     console.error('[AUTH REGISTRO]', err.message);
     res.status(500).json({ ok: false, error: 'No pudimos crear la cuenta. Intenta nuevamente.' });
