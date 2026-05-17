@@ -1296,7 +1296,13 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
   <nav class="nav">
     <div class="brand-wrap"><div class="logo lt" onclick="irAlInicio()">Entradas<span>Jujuy</span></div></div>
     <div class="nav-r">
-      <button class="bcta t" onclick="GOI('publico','compra')">Comprar</button>
+      <!-- Botón Ingresar: visible cuando NO hay sesión activa -->
+      <button id="btn-ingresar" class="bcta t" onclick="abrirAuth()">Ingresar</button>
+      <!-- Botón Usuario: visible cuando hay sesión. Muestra nombre, abre el menú al tocarlo -->
+      <button id="btn-usuario" type="button" onclick="toggleMainMenu(event)" aria-label="Mi cuenta" style="display:none;align-items:center;gap:8px;height:44px;padding:0 14px 0 10px;border-radius:999px;border:1px solid var(--b2);background:rgba(255,255,255,.04);color:var(--t1);font-family:Outfit,sans-serif;font-weight:600;font-size:13px;cursor:pointer">
+        <span style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#C4692B,#E8A020);display:flex;align-items:center;justify-content:center;color:#0a0704;font-weight:800;font-size:12px;flex-shrink:0" id="nav-avatar">U</span>
+        <span id="nav-nombre" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Usuario</span>
+      </button>
       <div class="user-menu-wrap">
         <button id="btn-menu" class="menu-btn" type="button" onclick="toggleMainMenu(event)" aria-label="Abrir menu" aria-controls="main-menu" aria-expanded="false">
           <span></span><span></span><span></span>
@@ -3052,8 +3058,19 @@ function setAutenticado(u, token){
   localStorage.removeItem('ej-pending-verify-email');
   var bi = document.getElementById('btn-ingresar');
   var bu = document.getElementById('btn-usuario');
+  var bm = document.getElementById('btn-menu');
   if(bi) bi.style.display = 'none';
-  if(bu){ bu.style.display = 'flex'; document.getElementById('nav-nombre').textContent = u.nombre.split(' ')[0]; }
+  if(bu){
+    bu.style.display = 'inline-flex';
+    var firstName = (u.nombre || 'Usuario').split(' ')[0];
+    var nameEl = document.getElementById('nav-nombre');
+    if(nameEl) nameEl.textContent = firstName;
+    var avEl = document.getElementById('nav-avatar');
+    if(avEl) avEl.textContent = (firstName.charAt(0) || 'U').toUpperCase();
+  }
+  /* Cuando hay sesión activa, el menú se abre tocando el avatar/nombre — ocultamos
+     el hamburger para que no haya dos botones que abran el mismo menú */
+  if(bm) bm.style.display = 'none';
   refrescarMenuUsuario();
   syncCompradorFields();
   cargarMisProductos();
@@ -3543,6 +3560,7 @@ function logout(){
   localStorage.removeItem('ej-token');
   var bi=document.getElementById('btn-ingresar'); if(bi) bi.style.display='';
   var bu=document.getElementById('btn-usuario');  if(bu) bu.style.display='none';
+  var bm=document.getElementById('btn-menu');     if(bm) bm.style.display='';
   refrescarMenuUsuario();
   cerrarMainMenu();
   cerrarMiCuenta(); GO('publico');
