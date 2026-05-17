@@ -1571,10 +1571,9 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
       <div class="tk-tp" id="ticket-row-v" style="display:none"><div><div class="tk-nm" id="ticket-name-v">VIP</div></div><div class="qty"><button class="qty-btn" onclick="QQ('v',-1)">-</button><span class="qty-n" id="q-v">0</span><button class="qty-btn" onclick="QQ('v',1)">+</button></div><div id="ticket-price-v" style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--s);flex-shrink:0">$0</div></div>
       <div class="compra-res">
         <div class="cr"><span class="cr-l">Subtotal entradas</span><span class="cr-v" id="cr-base">$0</span></div>
-        <div class="cr" id="cr-servicio-row" style="display:none"><span class="cr-l" title="Comisión de la plataforma">Servicio EntradasJujuy (6%)</span><span class="cr-v" id="cr-servicio">$0</span></div>
-        <div class="cr" id="cr-mp-row" style="display:none"><span class="cr-l" title="Comisión del procesador de pagos">Comisión Mercado Pago (6,60%)</span><span class="cr-v" id="cr-mp">$0</span></div>
+        <div class="cr" id="cr-servicio-row" style="display:none"><span class="cr-l" title="Cargo de la plataforma">Servicios EntradasJujuy (12,60%)</span><span class="cr-v" id="cr-servicio">$0</span></div>
         <div class="cr"><span class="cr-l" style="font-weight:500;color:var(--t2)">Total a pagar</span><span class="cr-v tot" id="cr-tot">$0</span></div>
-        <div id="cr-info-servicio" style="display:none;font-size:11px;color:var(--t3);margin-top:8px;padding:8px 10px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.18);border-radius:8px;line-height:1.4">Pagás el valor de la entrada + 6% de servicio EntradasJujuy + 6,60% de comisión Mercado Pago. Así el organizador recibe íntegro el precio publicado.</div>
+        <div id="cr-info-servicio" style="display:none;font-size:11px;color:var(--t3);margin-top:8px;padding:8px 10px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.18);border-radius:8px;line-height:1.4">Al precio de la entrada se le suma 12,60% por servicios EntradasJujuy. Así el organizador recibe íntegro el monto publicado.</div>
       </div>
       <!-- Formulario del comprador -->
       <div id="form-comprador" style="margin-top:16px;display:none">
@@ -1708,6 +1707,39 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
           <div class="mp-title" id="mp-publish-title">Mercado Pago requerido para eventos pagos</div>
           <div class="mp-desc" id="mp-publish-desc">Conectá la cuenta donde querés cobrar. Los compradores pagan directo a tu Mercado Pago.</div>
           <button class="bcta c" id="mp-publish-connect-btn" style="width:100%;height:42px" onclick="conectarMercadoPago()">Conectar Mercado Pago</button>
+        </div>
+
+        <!-- INFO: cómo funciona MP + configurar checkout para cobro instantáneo -->
+        <div id="info-mp-checkout" style="background:linear-gradient(135deg,rgba(0,150,255,0.06),rgba(196,105,43,0.04));border:1px solid rgba(0,150,255,0.22);border-radius:12px;padding:14px 14px 12px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="width:28px;height:28px;border-radius:50%;background:rgba(0,150,255,0.18);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3aa0e8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div style="font-family:'Fraunces',serif;font-size:15px;font-weight:700;color:var(--t1);line-height:1.2">Antes de publicar, leé esto</div>
+          </div>
+          <div style="font-size:13px;color:var(--t2);line-height:1.55;margin-bottom:12px">
+            <strong style="color:var(--t1)">Cómo funciona el cobro:</strong> el comprador paga directo a <strong>tu</strong> cuenta de Mercado Pago. EntradasJujuy se queda solo con el <strong style="color:var(--t)">6%</strong>; vos recibís el <strong style="color:var(--g)">100% del precio que publicaste</strong>. La comisión que cobra Mercado Pago (6,60%) la paga el comprador como parte del cargo de servicio.
+          </div>
+          <div style="background:rgba(232,160,32,0.08);border:1px solid rgba(232,160,32,0.25);border-radius:9px;padding:11px 12px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E8A020" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <strong style="font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:#E8A020">Importante · Para cobrar al instante</strong>
+            </div>
+            <div style="font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:8px">
+              Por defecto, Mercado Pago puede retener tu dinero hasta 14 días. Para que cada venta caiga <strong>al instante</strong> a tu cuenta, configurá el <strong>Checkout</strong>:
+            </div>
+            <ol style="font-size:12px;color:var(--t2);line-height:1.65;padding-left:20px;margin:0 0 8px 0">
+              <li>Entrá a <a href="https://www.mercadopago.com.ar/tu-negocio" target="_blank" rel="noopener" style="color:var(--s);text-decoration:underline">Mercado Pago → Tu negocio</a></li>
+              <li>Andá a <strong>Configuración</strong> → <strong>Cobros / Plazo de acreditación</strong></li>
+              <li>En "Plazo para recibir tu dinero" elegí <strong>"Al momento"</strong> o <strong>"Inmediato"</strong></li>
+              <li>Confirmá. Listo: cada compra acreditada cae directo a tu balance MP</li>
+            </ol>
+            <a href="https://www.mercadopago.com.ar/ayuda/configurar-plazo-acreditacion_4096" target="_blank" rel="noopener" style="font-size:11px;color:var(--s);text-decoration:none;font-weight:600">Ver guía oficial de Mercado Pago →</a>
+          </div>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0">
+            <input type="checkbox" id="mp-checkout-ack" style="margin-top:2px;flex-shrink:0;accent-color:var(--t);cursor:pointer">
+            <span style="font-size:12px;color:var(--t2);line-height:1.45">Entendí cómo funciona el cobro y voy a configurar mi MP para recibir el dinero al instante.</span>
+          </label>
         </div>
         <div class="fg"><label class="fl">Nombre del evento</label><input class="fi" id="org-nombre" type="text" placeholder="Ej: Gran Peña de Carnaval 2025"></div>
         <div class="fg"><label class="fl">Descripción</label><textarea class="fi-area" id="org-desc" placeholder="Artistas, actividades, qué incluye..."></textarea></div>
@@ -2200,20 +2232,17 @@ function QQ(t,d){
   QV[t]=Math.max(0,QV[t]+d);
   document.getElementById('q-'+t).textContent=QV[t];
   const base=QV.g*PV.g+QV.p*PV.p+QV.v*PV.v;
-  /* servicio EntradasJujuy (6%) + cobertura comisión Mercado Pago (6,60%) — lo paga el comprador */
-  const servicio = Math.round(base*0.06);
-  const mpFee = Math.round(base*0.066);
-  const total = base + servicio + mpFee;
+  /* Para el COMPRADOR mostramos un único cargo unificado "Servicios EntradasJujuy" (12,60%).
+     Internamente sigue separado: 6% marketplace_fee + 6,60% cobertura MP. El backend
+     calcula igual: el organizador recibe el 100% de su precio. */
+  const servicioTotal = Math.round(base*0.126);
+  const total = base + servicioTotal;
   document.getElementById('cr-base').textContent='$'+base.toLocaleString('es-AR');
   var srvRow = document.getElementById('cr-servicio-row');
   var srvInfo = document.getElementById('cr-info-servicio');
   var srvVal = document.getElementById('cr-servicio');
-  var mpRow = document.getElementById('cr-mp-row');
-  var mpVal = document.getElementById('cr-mp');
-  if(srvVal) srvVal.textContent='$'+servicio.toLocaleString('es-AR');
-  if(mpVal) mpVal.textContent='$'+mpFee.toLocaleString('es-AR');
+  if(srvVal) srvVal.textContent='$'+servicioTotal.toLocaleString('es-AR');
   if(srvRow) srvRow.style.display = base > 0 ? 'flex' : 'none';
-  if(mpRow) mpRow.style.display = base > 0 ? 'flex' : 'none';
   if(srvInfo) srvInfo.style.display = base > 0 ? 'block' : 'none';
   document.getElementById('cr-tot').textContent='$'+total.toLocaleString('es-AR');
   // Mostrar formulario si hay al menos 1 entrada
@@ -4396,6 +4425,16 @@ async function publicarEventoOrg(ev){
     var payload = leerCamposEvento(root);
     var flyerInput = document.getElementById('org-flyer');
     payload.flyer = await resizeImageFile(flyerInput && flyerInput.files ? flyerInput.files[0] : null);
+    /* Para eventos pagos: requiere que el organizador confirme el aviso de MP */
+    if(payload.type === 'pago'){
+      var ack = document.getElementById('mp-checkout-ack');
+      if(ack && !ack.checked){
+        showPublishNote('org-publish-note', 'Tenés que confirmar el aviso sobre Mercado Pago (el checkbox arriba) antes de publicar.');
+        var infoBox = document.getElementById('info-mp-checkout');
+        if(infoBox) infoBox.scrollIntoView({ behavior:'smooth', block:'center' });
+        return;
+      }
+    }
     if(payload.type === 'pago' && (!_mpStatus || !_mpStatus.connected)){
       showPublishNote('org-publish-note', mercadoPagoRequiredMessage());
       var mpCard = document.getElementById('mp-publish-card');
