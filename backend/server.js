@@ -314,10 +314,15 @@ function sendWithTimeout(transport, message, context) {
 }
 
 async function sendMailResilient(message, context) {
-  const attempts = [{ label: `${context}_primary`, transport: mailer }];
+  const attempts = [];
+
+  /* Brevo en Render: el puerto 587 frecuentemente falla por bloqueos
+     del proveedor; el 2525 funciona consistentemente. Lo probamos PRIMERO
+     para no esperar el timeout del 587. */
   if (/brevo/i.test(SMTP_HOST) && SMTP_PORT !== 2525) {
     attempts.push({ label: `${context}_brevo_2525`, transport: createMailerOverride(2525, false) });
   }
+  attempts.push({ label: `${context}_primary`, transport: mailer });
   if (/gmail/i.test(SMTP_HOST) && SMTP_PORT === 465) {
     attempts.push({ label: `${context}_gmail_587`, transport: createMailerOverride(587, false) });
   }
@@ -328,23 +333,27 @@ async function sendMailResilient(message, context) {
   let lastErr = null;
   for (const attempt of attempts) {
     try {
+      console.log(`[SMTP] Enviando ${attempt.label} a ${message.to}...`);
       const info = await sendWithTimeout(attempt.transport, message, attempt.label);
       lastEmailError = null;
       lastEmailSuccess = {
         at: new Date().toISOString(),
         context,
         transport: attempt.label,
+        to: String(message.to || '').slice(0, 80),
         accepted: Array.isArray(info?.accepted) ? info.accepted.length : null,
         rejected: Array.isArray(info?.rejected) ? info.rejected.length : null,
         response: String(info?.response || '').slice(0, 180),
       };
+      console.log(`[SMTP] OK ${attempt.label}: ${lastEmailSuccess.response}`);
       return info;
     } catch (err) {
       lastErr = err;
       rememberEmailError(err, attempt.label);
-      console.warn(`[SMTP] Fallo ${attempt.label}:`, err.message);
+      console.warn(`[SMTP] Fallo ${attempt.label}: ${err.message} (code=${err.code || 'n/a'})`);
     }
   }
+  console.error(`[SMTP] Todos los intentos fallaron para ${context} a ${message.to}`);
   throw lastErr;
 }
  
@@ -355,6 +364,58 @@ app.get('/health', (req, res) => res.json({
   smtp: safeSmtpInfo(),
   mercadopago: mpConfigStatus(),
 }));
+
+/* Endpoint diagnóstico: enviar un email de prueba a cualquier destinatario.
+   Uso: GET /api/admin/email-test?to=tu@email.com&key=ADMIN_KEY
+   Si ADMIN_KEY no está seteado, requiere que el destinatario sea SMTP_USER
+   (es decir, te lo mandás a vos mismo) para evitar abuso. */
+app.get('/api/admin/email-test', async (req, res) => {
+  const to = String(req.query.to || '').trim();
+  const key = String(req.query.key || '').trim();
+  const adminKey = String(process.env.ADMIN_KEY || '').trim();
+
+  if (!to) return res.status(400).json({ ok: false, error: 'Falta ?to=email' });
+  if (adminKey) {
+    if (key !== adminKey) return res.status(401).json({ ok: false, error: 'ADMIN_KEY inválida' });
+  } else {
+    /* Sin ADMIN_KEY configurada: solo permite enviarte a vos mismo (SMTP_USER) */
+    if (to.toLowerCase() !== SMTP_USER.toLowerCase()) {
+      return res.status(403).json({ ok: false, error: 'Configurá ADMIN_KEY en Render o usá ?to=' + SMTP_USER });
+    }
+  }
+  if (!SMTP_USER || !SMTP_PASS) {
+    return res.status(503).json({ ok: false, error: 'SMTP no configurado (faltan SMTP_USER/SMTP_PASS)' });
+  }
+  try {
+    const info = await sendMailResilient({
+      from: MAIL_FROM,
+      to,
+      subject: 'Prueba de SMTP - EntradasJujuy',
+      text: 'Si recibís este email, el envío desde el backend funciona correctamente.',
+      html: '<div style="font-family:Arial,sans-serif;padding:20px;background:#0a0704;color:#EAE0D0;border-radius:10px;max-width:480px;margin:0 auto"><h2 style="color:#C4692B;margin:0 0 10px">Test de SMTP ✓</h2><p style="line-height:1.5">Si recibís este email, el envío desde el backend de EntradasJujuy funciona correctamente.</p><p style="font-size:12px;color:#9A8670;margin-top:18px">Enviado desde ' + SMTP_HOST + ':' + SMTP_PORT + '</p></div>',
+    }, 'admin_test');
+    res.json({
+      ok: true,
+      to,
+      from: MAIL_FROM,
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      transport: lastEmailSuccess?.transport || null,
+      response: String(info?.response || '').slice(0, 200),
+      tip: 'Si no llegó, revisá la carpeta de SPAM. Es lo más común con remitentes nuevos.',
+    });
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err.message,
+      code: err.code || null,
+      command: err.command || null,
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      from: MAIL_FROM,
+    });
+  }
+});
 
 // ── Auth helpers
 function normalizeEmail(email = '') {
