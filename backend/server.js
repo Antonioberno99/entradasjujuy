@@ -371,6 +371,42 @@ app.get('/health', (req, res) => res.json({
   mercadopago: mpConfigStatus(),
 }));
 
+/* Endpoint diagnóstico: prueba conexión TCP a varios puertos SMTP comunes
+   Uso: GET /api/admin/smtp-probe
+   Sin auth — solo testea conectividad, no manda emails. */
+app.get('/api/admin/smtp-probe', async (req, res) => {
+  const net = require('net');
+  const targets = [
+    { host: 'smtp.hostinger.com', port: 465, label: 'hostinger_465_ssl' },
+    { host: 'smtp.hostinger.com', port: 587, label: 'hostinger_587_tls' },
+    { host: 'smtp-relay.brevo.com', port: 587, label: 'brevo_587' },
+    { host: 'smtp-relay.brevo.com', port: 2525, label: 'brevo_2525' },
+    { host: 'smtp.gmail.com', port: 465, label: 'gmail_465_ssl' },
+    { host: 'smtp.gmail.com', port: 587, label: 'gmail_587_tls' },
+  ];
+  const probe = (host, port) => new Promise((resolve) => {
+    const start = Date.now();
+    const sock = new net.Socket();
+    let resolved = false;
+    const finish = (status, err) => {
+      if (resolved) return;
+      resolved = true;
+      sock.destroy();
+      resolve({ status, ms: Date.now() - start, error: err || null });
+    };
+    sock.setTimeout(6000);
+    sock.on('connect', () => finish('ok'));
+    sock.on('timeout', () => finish('timeout'));
+    sock.on('error', (err) => finish('error', err.code || err.message));
+    sock.connect(port, host);
+  });
+  const results = {};
+  for (const t of targets) {
+    results[t.label] = await probe(t.host, t.port);
+  }
+  res.json({ ok: true, currently_configured: { host: SMTP_HOST, port: SMTP_PORT }, results });
+});
+
 /* Endpoint diagnóstico: enviar un email de prueba a cualquier destinatario.
    Uso: GET /api/admin/email-test?to=tu@email.com&key=ADMIN_KEY
    Si ADMIN_KEY no está seteado, requiere que el destinatario sea SMTP_USER
