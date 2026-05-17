@@ -244,7 +244,11 @@ const googleOAuthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 // Email
 const SMTP_HOST = process.env.SMTP_HOST || 'sandbox.smtp.mailtrap.io';
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
-const SMTP_SECURE = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || SMTP_PORT === 465;
+/* SMTP_SECURE: true para SSL directo (465), false para STARTTLS (587, 2525).
+   Brevo en 2525 SIEMPRE es STARTTLS, aunque el usuario haya seteado SMTP_SECURE=true. */
+let SMTP_SECURE = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || SMTP_PORT === 465;
+if (SMTP_PORT === 2525) SMTP_SECURE = false;
+if (SMTP_PORT === 587) SMTP_SECURE = false;
 const SMTP_USER = String(process.env.SMTP_USER || '').trim();
 const SMTP_PASS_RAW = String(process.env.SMTP_PASS || '').trim();
 const SMTP_PASS = /gmail/i.test(SMTP_HOST) ? SMTP_PASS_RAW.replace(/\s+/g, '') : SMTP_PASS_RAW;
