@@ -1741,11 +1741,47 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
             </ol>
             <a href="https://www.mercadopago.com.ar/ayuda/configurar-plazo-acreditacion_4096" target="_blank" rel="noopener" style="font-size:11px;color:var(--s);text-decoration:none;font-weight:600">Ver guía oficial de Mercado Pago →</a>
           </div>
-          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0">
-            <input type="checkbox" id="mp-checkout-ack" style="margin-top:2px;flex-shrink:0;accent-color:var(--t);cursor:pointer">
-            <span style="font-size:12px;color:var(--t2);line-height:1.45">Entendí cómo funciona el cobro y voy a configurar mi MP para recibir el dinero al instante.</span>
+          <!-- Checkbox de confirmación: visible y obvio -->
+          <label for="mp-checkout-ack" id="mp-ack-label" style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:14px 14px;margin-top:6px;background:rgba(196,105,43,0.08);border:1.5px solid rgba(196,105,43,0.35);border-radius:10px;user-select:none;transition:all .2s">
+            <span id="mp-ack-box" style="flex-shrink:0;width:24px;height:24px;border:2px solid var(--t);border-radius:6px;background:transparent;display:flex;align-items:center;justify-content:center;transition:all .2s">
+              <svg id="mp-ack-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0a0704" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            <span style="font-size:13px;color:var(--t1);line-height:1.4;font-weight:500">Entendí cómo funciona el cobro y voy a configurar mi MP para recibir el dinero al instante.</span>
+            <input type="checkbox" id="mp-checkout-ack" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none">
           </label>
         </div>
+        <script>
+          (function(){
+            var cb = document.getElementById('mp-checkout-ack');
+            var box = document.getElementById('mp-ack-box');
+            var check = document.getElementById('mp-ack-check');
+            var label = document.getElementById('mp-ack-label');
+            if(!cb || !box || !label) return;
+            function sync(){
+              if(cb.checked){
+                box.style.background = 'var(--t)';
+                box.style.borderColor = 'var(--t)';
+                check.style.display = 'block';
+                label.style.background = 'rgba(196,105,43,0.18)';
+                label.style.borderColor = 'var(--t)';
+              } else {
+                box.style.background = 'transparent';
+                box.style.borderColor = 'var(--t)';
+                check.style.display = 'none';
+                label.style.background = 'rgba(196,105,43,0.08)';
+                label.style.borderColor = 'rgba(196,105,43,0.35)';
+              }
+            }
+            label.addEventListener('click', function(ev){
+              if(ev.target === cb) return;
+              ev.preventDefault();
+              cb.checked = !cb.checked;
+              sync();
+            });
+            cb.addEventListener('change', sync);
+            sync();
+          })();
+        </script>
         <div class="fg"><label class="fl">Nombre del evento</label><input class="fi" id="org-nombre" type="text" placeholder="Ej: Gran Peña de Carnaval 2025"></div>
         <div class="fg"><label class="fl">Descripción</label><textarea class="fi-area" id="org-desc" placeholder="Artistas, actividades, qué incluye..."></textarea></div>
         <div class="fg"><label class="fl">Categoría</label><select class="fi-sel" id="org-categoria"><option>Carnaval</option><option>Folklore</option><option>Recital</option><option>Teatro</option><option>Festival de coplas</option><option>Arte</option><option>Deportes</option><option>Ritual tradicional</option><option>Otro</option></select></div>
