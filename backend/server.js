@@ -326,8 +326,14 @@ async function sendMailResilient(message, context) {
   if (/gmail/i.test(SMTP_HOST) && SMTP_PORT === 465) {
     attempts.push({ label: `${context}_gmail_587`, transport: createMailerOverride(587, false) });
   }
-  if (/hostinger/i.test(SMTP_HOST) && SMTP_PORT !== 587) {
-    attempts.push({ label: `${context}_hostinger_587`, transport: createMailerOverride(587, false) });
+  /* Hostinger: probar ambos puertos seguros (465 SSL y 587 STARTTLS) si el primary falla */
+  if (/hostinger/i.test(SMTP_HOST)) {
+    if (SMTP_PORT !== 465) {
+      attempts.push({ label: `${context}_hostinger_465`, transport: createMailerOverride(465, true) });
+    }
+    if (SMTP_PORT !== 587) {
+      attempts.push({ label: `${context}_hostinger_587`, transport: createMailerOverride(587, false) });
+    }
   }
 
   let lastErr = null;
