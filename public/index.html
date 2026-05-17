@@ -660,12 +660,12 @@ footer{background:#0a0704;border-top:1px solid var(--b1);padding:20px 16px}
 .srv-r{flex-shrink:0;display:flex;align-items:center}
 
 /* Compra */
-.compra-hdr{background:linear-gradient(150deg,#1a0e06 0%,#f5deca 50%,#ead5b8 100%);padding:24px 16px;border-bottom:1px solid var(--b1);position:relative;overflow:hidden}
+.compra-hdr{background:linear-gradient(150deg,#1a0e06 0%,#f5deca 50%,#ead5b8 100%);padding:10px 16px 14px;border-bottom:none;position:relative;overflow:hidden}
 .compra-hdr::before{content:'';position:absolute;inset:0;opacity:.04;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.5) 0,rgba(255,255,255,.5) 1px,transparent 0,transparent 30px),repeating-linear-gradient(0deg,rgba(255,255,255,.5) 0,rgba(255,255,255,.5) 1px,transparent 0,transparent 30px)}
-.compra-nm{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:var(--t1);margin-bottom:5px;position:relative;z-index:1}
-.compra-dt{font-size:12px;color:var(--t2);position:relative;z-index:1}
-.compra-body{padding:20px 16px}
-.compra-stl{font-size:10px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:12px}
+.compra-nm{font-family:'Fraunces',serif;font-size:19px;font-weight:700;color:var(--t1);margin-bottom:2px;position:relative;z-index:1;line-height:1.15}
+.compra-dt{font-size:12px;color:var(--t2);position:relative;z-index:1;line-height:1.35}
+.compra-body{padding:14px 16px 18px}
+.compra-stl{font-size:10px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px}
 .tk-tp{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--b1);gap:12px}
 .tk-tp:last-child{border-bottom:none}
 .tk-nm{font-size:14px;font-weight:500;color:var(--t1);margin-bottom:2px}
@@ -713,8 +713,8 @@ footer{background:#0a0704;border-top:1px solid var(--b1);padding:20px 16px}
   .stat-grid{grid-template-columns:repeat(4,1fr);padding:20px 40px}
   .panel-top{padding:32px 80px 24px}
   .fsec{padding:24px 80px}
-  .compra-hdr{padding:32px 80px}
-  .compra-body{padding:28px 80px}
+  .compra-hdr{padding:16px 80px 18px}
+  .compra-body{padding:20px 80px 26px}
   .bnav{display:none}
   .cpb{padding-bottom:0}
 }
@@ -1552,7 +1552,7 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
       <img id="compra-flyer-img" src="" alt="Flyer del evento" style="width:100%;height:auto;display:block">
     </div>
     <div class="compra-hdr">
-      <button onclick="GOI('publico','main')" style="min-height:var(--touch);display:flex;align-items:center;background:none;border:none;color:rgba(0,0,0,.4);font-size:12px;cursor:pointer;padding:0;margin-bottom:14px;font-family:Outfit,sans-serif;position:relative;z-index:1">Volver a eventos</button>
+      <button onclick="GOI('publico','main')" style="min-height:30px;display:flex;align-items:center;background:none;border:none;color:rgba(0,0,0,.45);font-size:11px;cursor:pointer;padding:0;margin-bottom:6px;font-family:Outfit,sans-serif;position:relative;z-index:1">← Volver a eventos</button>
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
         <div style="flex:1;min-width:0">
           <div class="compra-nm" id="compra-evento-nombre">Seleccioná un evento</div>
