@@ -941,9 +941,10 @@ app.post('/api/auth/google', async (req, res) => {
 
   try {
     const profile = await verifyGoogleCredential(credential);
-    let user = await getUserByEmail(profile.email);
+    const existing = await getUserByEmail(profile.email);
 
-    if (user) {
+    if (existing) {
+      /* Cuenta YA existe: actualizar datos de Google y loguear normalmente */
       const { rows } = await db.query(`
         UPDATE usuarios
         SET google_id = COALESCE(google_id, $2),
@@ -955,18 +956,26 @@ app.post('/api/auth/google', async (req, res) => {
             email_verification_expires_at = NULL
         WHERE id = $1
         RETURNING id, nombre, email, rol, avatar_url, auth_provider, email_verified
-      `, [user.id, profile.googleId, profile.avatarUrl]);
-      user = rows[0];
-    } else {
-      const { rows } = await db.query(`
-        INSERT INTO usuarios (nombre, email, password_hash, rol, auth_provider, google_id, avatar_url, email_verified)
-        VALUES ($1, $2, '', $5, 'google', $3, $4, true)
-        RETURNING id, nombre, email, rol, avatar_url, auth_provider, email_verified
-      `, [profile.nombre, profile.email, profile.googleId, profile.avatarUrl, rol]);
-      user = rows[0];
+      `, [existing.id, profile.googleId, profile.avatarUrl]);
+      return res.json(authPayload(rows[0]));
     }
 
-    res.json(authPayload(user));
+    /* Cuenta NUEVA con Google: crear sin verificar y disparar email de verificación.
+       Esto previene que el botón Google en "Iniciar sesión" cree cuentas silenciosamente
+       — el usuario tiene que confirmar el email antes de poder usar la cuenta. */
+    const { rows: created } = await db.query(`
+      INSERT INTO usuarios (nombre, email, password_hash, rol, auth_provider, google_id, avatar_url, email_verified)
+      VALUES ($1, $2, '', $5, 'google', $3, $4, false)
+      RETURNING id, nombre, email, rol, avatar_url, auth_provider, email_verified
+    `, [profile.nombre, profile.email, profile.googleId, profile.avatarUrl, rol]);
+    const newUser = created[0];
+
+    return respondWithVerificationEmail(
+      res,
+      newUser,
+      201,
+      'Te creamos una cuenta con tu Google. Antes de empezar, confirmá tu email tocando el link que te enviamos a tu Gmail.'
+    );
   } catch (err) {
     console.error('[AUTH GOOGLE]', err.message);
     res.status(401).json({ ok: false, error: err.message });
