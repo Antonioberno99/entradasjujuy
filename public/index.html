@@ -3150,7 +3150,25 @@ function detenerPollingVerificacion(){
   if(_pollVerifyTimer){ clearInterval(_pollVerifyTimer); _pollVerifyTimer = null; }
 }
 
+function mostrarFlashVerificado(){
+  var waitingEl = document.getElementById('verify-gate-waiting');
+  var statusEl = document.getElementById('verify-gate-status');
+  if(waitingEl) waitingEl.style.display = 'none';
+  if(statusEl){
+    statusEl.style.display = 'block';
+    statusEl.style.background = 'rgba(61,170,106,.12)';
+    statusEl.style.color = 'var(--g)';
+    statusEl.style.border = '1px solid rgba(61,170,106,.35)';
+    statusEl.style.textAlign = 'center';
+    statusEl.style.padding = '14px';
+    statusEl.innerHTML = '<div style="font-size:24px;line-height:1;margin-bottom:6px">✓</div><strong>¡Email verificado!</strong><br><span style="font-size:12px;opacity:.8">Ingresando a tu cuenta...</span>';
+  }
+}
+
 async function procesarLoginAutomaticoTrasVerificacion(){
+  /* Mostrar flash visual de éxito antes de loguear */
+  mostrarFlashVerificado();
+
   /* Caso A: el otro tab guardó el token y la sesión ya está en localStorage */
   var existingToken = localStorage.getItem('ej-token');
   if(existingToken){
@@ -3158,10 +3176,12 @@ async function procesarLoginAutomaticoTrasVerificacion(){
       var r = await fetch(BACKEND + '/api/auth/perfil', { headers:{ 'Authorization':'Bearer '+existingToken } });
       var d = await r.json();
       if(d.ok && d.usuario){
-        cerrarPanelVerificacion();
-        localStorage.removeItem('ej-pending-verify-email');
-        setAutenticado(d.usuario, existingToken);
-        irARol(d.usuario.rol);
+        setTimeout(function(){
+          cerrarPanelVerificacion();
+          localStorage.removeItem('ej-pending-verify-email');
+          setAutenticado(d.usuario, existingToken);
+          irARol(d.usuario.rol);
+        }, 800);
         return;
       }
     }catch(e){}
@@ -3175,11 +3195,13 @@ async function procesarLoginAutomaticoTrasVerificacion(){
       });
       var db = await rb.json();
       if(db.ok && db.usuario && db.token){
-        cerrarPanelVerificacion();
-        localStorage.removeItem('ej-pending-verify-email');
-        _pendingVerifyPassword = '';
-        setAutenticado(db.usuario, db.token);
-        irARol(db.usuario.rol);
+        setTimeout(function(){
+          cerrarPanelVerificacion();
+          localStorage.removeItem('ej-pending-verify-email');
+          _pendingVerifyPassword = '';
+          setAutenticado(db.usuario, db.token);
+          irARol(db.usuario.rol);
+        }, 800);
         return;
       }
     }catch(e){}
@@ -3191,11 +3213,16 @@ async function procesarLoginAutomaticoTrasVerificacion(){
     statusEl.style.background = 'rgba(61,170,106,.1)';
     statusEl.style.color = 'var(--g)';
     statusEl.style.border = '1px solid rgba(61,170,106,.3)';
+    statusEl.style.textAlign = 'left';
     statusEl.innerHTML = '<strong>✓ Cuenta verificada</strong><br>Ya podés ingresar con tu email y contraseña.';
   }
   var resendBtn = document.getElementById('verify-gate-resend');
   if(resendBtn){
     resendBtn.textContent = 'Ir al login';
+    resendBtn.style.background = 'var(--t)';
+    resendBtn.style.color = '#fff';
+    resendBtn.style.borderColor = 'var(--t)';
+    resendBtn.style.fontWeight = '700';
     resendBtn.onclick = function(){
       cerrarPanelVerificacion();
       localStorage.removeItem('ej-pending-verify-email');
@@ -3223,20 +3250,55 @@ function abrirPanelVerificacion(email, mensaje){
     panel.id = 'verify-gate';
     panel.setAttribute('role','dialog');
     panel.setAttribute('aria-modal','true');
-    panel.style.cssText = 'position:fixed;inset:0;z-index:10020;background:linear-gradient(180deg,rgba(10,7,4,.96),rgba(19,13,8,.98));display:none;align-items:center;justify-content:center;padding:22px;color:var(--t1)';
+    panel.style.cssText = 'position:fixed;inset:0;z-index:10020;background:linear-gradient(180deg,rgba(10,7,4,.97),rgba(19,13,8,.99));display:none;align-items:center;justify-content:center;padding:22px;color:var(--t1);overflow-y:auto';
     panel.innerHTML =
-      '<div style="width:100%;max-width:440px;background:var(--bg);border:1px solid var(--b1);border-radius:18px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.45)">'+
-        '<div style="font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:var(--t4);margin-bottom:10px">Cuenta creada</div>'+
-        '<h2 style="font-family:Fraunces,serif;font-size:25px;line-height:1.05;margin:0 0 10px;color:var(--t1)">Verificá tu email para continuar</h2>'+
-        '<p id="verify-gate-copy" style="font-size:13px;line-height:1.55;color:var(--t2);margin:0 0 14px"></p>'+
-        '<div style="background:rgba(196,105,43,.08);border:1px solid rgba(196,105,43,.25);border-radius:10px;padding:12px;margin-bottom:14px">'+
-          '<div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t4);margin-bottom:5px">Email enviado a</div>'+
-          '<div id="verify-gate-email" style="font-size:14px;font-weight:700;color:var(--t1);word-break:break-word"></div>'+
+      '<div style="width:100%;max-width:460px;background:var(--bg);border:1px solid var(--b1);border-radius:18px;padding:28px 24px;box-shadow:0 24px 80px rgba(0,0,0,.55)">'+
+        /* Header con ícono email */
+        '<div style="text-align:center;margin-bottom:18px">'+
+          '<div style="width:64px;height:64px;border-radius:50%;background:rgba(196,105,43,.12);border:2px solid rgba(196,105,43,.3);display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px">'+
+            '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#C4692B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>'+
+          '</div>'+
+          '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--g);margin-bottom:8px;font-weight:700">✓ Cuenta creada</div>'+
+          '<h2 style="font-family:Fraunces,serif;font-size:26px;line-height:1.1;margin:0;color:var(--t1)">¡Bienvenido a EntradasJujuy!</h2>'+
         '</div>'+
-        '<div id="verify-gate-status" role="status" aria-live="polite" style="display:none;font-size:12px;line-height:1.45;border-radius:8px;padding:10px;margin-bottom:12px"></div>'+
-        '<button id="verify-gate-resend" type="button" onclick="reenviarVerificacionPendiente()" style="width:100%;height:46px;border:none;border-radius:10px;background:var(--t);color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:Outfit,sans-serif;margin-bottom:10px">Reenviar email de verificación</button>'+
-        '<button type="button" onclick="cerrarPanelVerificacion(); abrirAuth(); setAuthTab(&quot;login&quot;)" style="width:100%;height:44px;border:1px solid var(--b2);border-radius:10px;background:var(--bg2);color:var(--t);font-size:13px;font-weight:700;cursor:pointer;font-family:Outfit,sans-serif;margin-bottom:10px">Ya verifiqué, ingresar</button>'+
-        '<button type="button" onclick="localStorage.removeItem(&quot;ej-pending-verify-email&quot;); cerrarPanelVerificacion(); abrirAuth(); setAuthTab(&quot;registro&quot;)" style="width:100%;height:38px;border:none;background:transparent;color:var(--t3);font-size:12px;font-weight:700;cursor:pointer;font-family:Outfit,sans-serif">Usar otro correo</button>'+
+
+        /* Mensaje principal */
+        '<p id="verify-gate-copy" style="font-size:14px;line-height:1.6;color:var(--t2);margin:0 0 18px;text-align:center">Antes de empezar, confirmá que este email es tuyo tocando el link que te enviamos.</p>'+
+
+        /* Email destacado */
+        '<div style="background:rgba(196,105,43,.08);border:1px solid rgba(196,105,43,.25);border-radius:10px;padding:14px;margin-bottom:18px;text-align:center">'+
+          '<div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t4);margin-bottom:6px">Te enviamos un email a</div>'+
+          '<div id="verify-gate-email" style="font-size:15px;font-weight:700;color:var(--t1);word-break:break-word"></div>'+
+        '</div>'+
+
+        /* Spinner "esperando verificación" */
+        '<div id="verify-gate-waiting" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.03);border:1px solid var(--b1);border-radius:10px;padding:14px;margin-bottom:18px">'+
+          '<div style="width:18px;height:18px;border:2px solid var(--t);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0"></div>'+
+          '<div style="flex:1">'+
+            '<div style="font-size:12px;color:var(--t1);font-weight:600;line-height:1.3">Esperando que verifiques...</div>'+
+            '<div style="font-size:11px;color:var(--t3);margin-top:2px;line-height:1.4">Esta pantalla se actualiza sola cuando confirmes el email</div>'+
+          '</div>'+
+        '</div>'+
+
+        /* Pasos */
+        '<div style="background:rgba(255,255,255,.02);border:1px solid var(--b1);border-radius:10px;padding:14px;margin-bottom:18px">'+
+          '<div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t4);margin-bottom:10px;font-weight:600">Qué hacer ahora</div>'+
+          '<ol style="margin:0;padding-left:18px;font-size:13px;color:var(--t2);line-height:1.8">'+
+            '<li>Abrí <strong style="color:var(--t1)">Gmail</strong> (o tu correo) en otra pestaña</li>'+
+            '<li>Buscá el email <strong style="color:var(--t1)">"¡Bienvenido a EntradasJujuy!"</strong></li>'+
+            '<li>Tocá el botón <strong style="color:var(--t)">Verificar mi cuenta</strong></li>'+
+            '<li>Volvé acá — vas a quedar logueado automáticamente</li>'+
+          '</ol>'+
+        '</div>'+
+
+        /* Status box (para mensajes de verificación exitosa o errores) */
+        '<div id="verify-gate-status" role="status" aria-live="polite" style="display:none;font-size:13px;line-height:1.45;border-radius:10px;padding:12px;margin-bottom:14px"></div>'+
+
+        /* Acciones secundarias */
+        '<div style="display:flex;flex-direction:column;gap:8px">'+
+          '<button id="verify-gate-resend" type="button" onclick="reenviarVerificacionPendiente()" style="width:100%;height:42px;border:1px solid var(--b2);border-radius:10px;background:var(--bg2);color:var(--t1);font-size:13px;font-weight:600;cursor:pointer;font-family:Outfit,sans-serif">¿No te llegó? Reenviar email</button>'+
+          '<button type="button" onclick="if(confirm(&quot;¿Cancelar el registro? Tu cuenta no quedará verificada.&quot;)){ localStorage.removeItem(&quot;ej-pending-verify-email&quot;); cerrarPanelVerificacion(); }" style="width:100%;height:36px;border:none;background:transparent;color:var(--t4);font-size:11px;cursor:pointer;font-family:Outfit,sans-serif;text-decoration:underline">Usar otro correo</button>'+
+        '</div>'+
       '</div>';
     document.body.appendChild(panel);
   }
@@ -3244,14 +3306,12 @@ function abrirPanelVerificacion(email, mensaje){
   var copyEl = document.getElementById('verify-gate-copy');
   var statusEl = document.getElementById('verify-gate-status');
   if(emailEl) emailEl.textContent = email || 'tu email';
-  if(copyEl) copyEl.textContent = mensaje || 'Te enviamos un enlace de verificación. Abrí Gmail, confirmá tu cuenta y después volvé a ingresar.';
+  if(copyEl && mensaje) copyEl.textContent = mensaje;
   if(statusEl) statusEl.style.display = 'none';
+  var waitingEl = document.getElementById('verify-gate-waiting');
+  if(waitingEl) waitingEl.style.display = 'flex';
   panel.style.display = 'flex';
   cerrarAuth();
-  setTimeout(function(){
-    var btn = document.getElementById('verify-gate-resend');
-    if(btn) btn.focus();
-  }, 120);
 }
 
 function cerrarPanelVerificacion(){
