@@ -3564,13 +3564,21 @@ function renderPanelMisEntradas(orders){
         '<strong style="display:block;color:var(--t1);font-size:16px;margin-top:4px">'+escapeHtml(entradas[0] && entradas[0].evento ? entradas[0].evento : 'Entrada')+'</strong></div>'+
         '<button onclick="reenviarTicketsCuenta(&quot;'+escapeHtml(order.id || '')+'&quot;, this)" style="height:38px;border-radius:10px;border:1px solid var(--b1);background:var(--bg);color:var(--t1);padding:0 12px;cursor:pointer;font-size:12px">Reenviar email</button>'+
       '</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">'+entradas.map(function(e){
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">'+entradas.map(function(e){
+        var fechaFmt = e.fecha ? formatearFecha(String(e.fecha).slice(0,10)) : '';
+        var horaLim = e.hora_limite ? String(e.hora_limite).slice(0,5) : '';
         return '<div class="qr-ticket" style="text-align:left">'+
           '<div class="qr-ticket-logo">EntradasJujuy</div>'+
           '<div class="qr-ticket-nm">'+escapeHtml(e.evento || 'Entrada')+'</div>'+
-          '<div class="qr-ticket-dt">'+escapeHtml([e.fecha ? String(e.fecha).slice(0,10) : '', e.hora, e.lugar].filter(Boolean).join(' - '))+'</div>'+
+          '<div class="qr-ticket-dt">'+escapeHtml([fechaFmt, e.hora, e.lugar].filter(Boolean).join(' · '))+'</div>'+
           '<div class="qr-code-wrap"><img src="'+escapeHtml(e.qr_data_url || '')+'" alt="QR de entrada" style="width:132px;height:132px;display:block"></div>'+
-          '<div class="qr-ticket-footer"><span>'+escapeHtml(e.tipo || 'Entrada')+'</span><span class="qr-ticket-num">#'+escapeHtml(e.numero || '')+'</span></div>'+
+          /* Info detallada al pie del QR: tipo, número, fecha, hora límite */
+          '<div style="margin-top:8px;padding:8px 10px;background:rgba(196,105,43,.08);border:1px solid rgba(196,105,43,.2);border-radius:8px">'+
+            '<div style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin-bottom:2px">Tipo de entrada</div>'+
+            '<div style="font-size:13px;font-weight:700;color:var(--t1);line-height:1.2">'+escapeHtml(e.tipo || 'General')+'</div>'+
+            '<div style="font-size:11px;color:var(--t2);margin-top:3px">N° '+escapeHtml(String(e.numero || ''))+' · '+escapeHtml(fechaFmt || 'Sin fecha')+(e.hora ? ' · '+escapeHtml(e.hora) : '')+'</div>'+
+            (horaLim ? '<div style="margin-top:6px;padding:5px 8px;background:rgba(232,160,32,.12);border:1px solid rgba(232,160,32,.3);border-radius:5px;font-size:10px;color:#E8A020;text-align:center;line-height:1.3"><strong>Válido hasta las '+escapeHtml(horaLim)+' hs</strong></div>' : '')+
+          '</div>'+
         '</div>';
       }).join('')+'</div>'+
     '</article>';

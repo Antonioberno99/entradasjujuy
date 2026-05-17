@@ -2021,7 +2021,8 @@ app.get('/api/orden/:id', async (req, res) => {
     if (orden.estado === 'pagada' || orden.estado === 'cortesia') {
       const { rows: entradas } = await db.query(`
         SELECT en.id, en.estado, en.numero, en.token_qr,
-               te.nombre AS tipo, ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar
+               te.nombre AS tipo, te.hora_limite, te.promo_paga, te.promo_recibe, te.descripcion_extra,
+               ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar
         FROM entradas en
         JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
         JOIN eventos ev ON ev.id = te.evento_id
@@ -2051,7 +2052,8 @@ app.post('/api/orden/:id/reenviar', requireAuth, async (req, res) => {
 
     const { rows: entradasDb } = await db.query(`
       SELECT en.id, en.numero, en.token_qr,
-             te.nombre AS tipo, ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar,
+             te.nombre AS tipo, te.hora_limite, te.promo_paga, te.promo_recibe,
+             ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar,
              COUNT(*) OVER (PARTITION BY en.tipo_entrada_id) AS total_tipo
       FROM entradas en
       JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
@@ -2079,7 +2081,8 @@ app.get('/api/mis-entradas', requireAuth, async (req, res) => {
       SELECT o.id AS orden_id, o.comprador_email, o.comprador_nombre, o.estado AS orden_estado,
              o.fecha_pago, o.created_at,
              en.id AS entrada_id, en.numero, en.estado AS entrada_estado, en.token_qr,
-             te.nombre AS tipo, ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar
+             te.nombre AS tipo, te.hora_limite, te.promo_paga, te.promo_recibe, te.descripcion_extra,
+             ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar
       FROM ordenes o
       JOIN entradas en ON en.orden_id = o.id
       JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
@@ -2111,6 +2114,10 @@ app.get('/api/mis-entradas', requireAuth, async (req, res) => {
         estado: row.entrada_estado,
         token_qr: row.token_qr,
         tipo: row.tipo,
+        hora_limite: row.hora_limite,
+        promo_paga: row.promo_paga,
+        promo_recibe: row.promo_recibe,
+        descripcion_extra: row.descripcion_extra,
         evento: row.evento,
         fecha: row.fecha,
         hora: row.hora,
@@ -2212,18 +2219,27 @@ async function enviarEmail(orden, entradas) {
     contentType: 'image/png',
     cid: `qr-${e.id}@entradasjujuy`,
   }));
-  const qrHtml = entradas.map(e => `
+  const qrHtml = entradas.map(e => {
+    const horaLim = e.hora_limite ? String(e.hora_limite).slice(0, 5) : '';
+    const fechaFmt = e.fecha ? new Date(e.fecha).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : '';
+    return `
     <div style="border:1px solid #eeeeee;border-radius:20px;padding:16px;margin-bottom:16px;background:#ffffff;box-shadow:0 8px 22px rgba(10,7,4,.06)">
       <div style="display:inline-block;background:#0a0704;color:#C4692B;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;margin-bottom:12px">EntradasJujuy</div>
       <h3 style="color:#0a0704;margin:0 0 5px;font-size:18px;line-height:1.12">${e.evento}</h3>
-      <p style="color:#776b5d;font-size:12px;line-height:1.4;margin:0 0 10px">${new Date(e.fecha).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'})} - ${e.hora} hs - ${e.lugar}</p>
-      <p style="background:#fafafa;border:1px solid #eeeeee;padding:7px 10px;border-radius:999px;font-size:11px;margin:0 0 14px;color:#0a0704"><strong>${e.tipo}</strong> - Entrada ${e.numero} de ${e.total_tipo}</p>
+      <p style="color:#776b5d;font-size:12px;line-height:1.4;margin:0 0 12px">${fechaFmt}${e.hora ? ' · ' + e.hora + ' hs' : ''}${e.lugar ? ' · ' + e.lugar : ''}</p>
+      <div style="background:#fafafa;border:1px solid #eeeeee;border-radius:12px;padding:10px 12px;margin-bottom:14px">
+        <div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#8b7a66;margin-bottom:3px">Tipo de entrada</div>
+        <div style="font-size:14px;font-weight:700;color:#0a0704">${e.tipo}</div>
+        <div style="font-size:11px;color:#776b5d;margin-top:4px">Entrada ${e.numero} de ${e.total_tipo}</div>
+      </div>
       <div style="text-align:center;background:#fff;border:1px solid #f1f1f1;border-radius:18px;padding:8px;width:150px;margin:0 auto">
         <img src="cid:qr-${e.id}@entradasjujuy" style="width:132px;height:132px;display:block;margin:0 auto"/>
       </div>
-      <p style="text-align:center;font-size:10px;color:#8b7a66;margin:10px 0 0">Mostra este QR en la puerta</p>
+      <p style="text-align:center;font-size:10px;color:#8b7a66;margin:10px 0 6px">Mostrá este QR en la puerta</p>
+      ${horaLim ? `<div style="margin-top:12px;padding:8px 12px;background:#fff5e6;border:1px solid #ffd49a;border-radius:10px;text-align:center;font-size:11px;color:#a05a10;line-height:1.4"><strong>Válido hasta las ${horaLim} hs</strong> — el QR no se podrá escanear después de esa hora</div>` : ''}
     </div>
-  `).join('');
+  `;
+  }).join('');
  
   await sendMailResilient({
     from: MAIL_FROM,
