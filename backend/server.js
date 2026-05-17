@@ -2257,8 +2257,14 @@ async function autoMigrate(){
   } catch(err){
     console.error('[MIGRATE] Error:', err.message);
   }
-  /* Limpieza one-time: eliminar evento de prueba "Gran Peña Pueblo Encanto" */
+  /* Limpieza one-time: eliminar eventos de prueba */
   await borrarEventoDePrueba('pueblo encanto');
+  await borrarEventoDePrueba('prueba 05');
+  await borrarEventoDePrueba('prueba 5');
+  await borrarEventoDePrueba('prueba 07');
+  await borrarEventoDePrueba('prueba 7');
+  await borrarEventoDePrueba('pruba 07');
+  await borrarEventoDePrueba('pruba 7');
 }
 
 async function borrarEventoDePrueba(patron){
