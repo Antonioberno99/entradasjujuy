@@ -268,6 +268,8 @@ function safeSmtpInfo() {
     user_domain: userDomain || null,
     from_configured: !!SMTP_FROM,
     password_normalized: SMTP_PASS_RAW !== SMTP_PASS,
+    brevo_api_configured: !!BREVO_API_KEY,
+    active_transport: BREVO_API_KEY ? 'brevo_http_api' : 'smtp',
     last_error: lastEmailError,
     last_success: lastEmailSuccess,
   };
@@ -317,7 +319,94 @@ function sendWithTimeout(transport, message, context) {
   ]);
 }
 
+/* === BREVO HTTP API (alternativa al SMTP) ===
+   El SMTP de Brevo acepta "queued" pero descarta silenciosamente
+   los emails con sender no verificado. La HTTP API te devuelve
+   un error explícito (400 "sender_not_authorized") y usa puerto
+   443 que nunca está bloqueado.
+   Para usarla: configurar BREVO_API_KEY en Render. */
+const BREVO_API_KEY = String(process.env.BREVO_API_KEY || '').trim();
+
+async function sendViaBrevoApi(message) {
+  if (!BREVO_API_KEY) throw new Error('BREVO_API_KEY no configurada');
+  /* Parsear "Nombre <email>" o solo "email" del MAIL_FROM */
+  let senderEmail = '', senderName = '';
+  const fromStr = String(message.from || MAIL_FROM);
+  const m = fromStr.match(/^"?([^"<]*)"?\s*<([^>]+)>$/);
+  if (m) { senderName = m[1].trim(); senderEmail = m[2].trim(); }
+  else { senderEmail = fromStr.replace(/[<>]/g, '').trim(); }
+
+  const toList = (Array.isArray(message.to) ? message.to : [message.to])
+    .filter(Boolean)
+    .map(addr => ({ email: String(addr).replace(/.*<([^>]+)>.*/, '$1').trim() }));
+
+  /* Brevo API: attachments en base64 (no Buffer) */
+  const attachments = (message.attachments || []).map(att => ({
+    name: att.filename,
+    content: Buffer.isBuffer(att.content) ? att.content.toString('base64') : String(att.content || ''),
+  }));
+
+  const payload = {
+    sender: senderName ? { email: senderEmail, name: senderName } : { email: senderEmail },
+    to: toList,
+    subject: message.subject || '',
+    htmlContent: message.html || message.text || '',
+  };
+  if (message.text) payload.textContent = message.text;
+  if (attachments.length) payload.attachment = attachments;
+
+  const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': BREVO_API_KEY,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const text = await resp.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch {}
+  if (!resp.ok) {
+    const err = new Error(`Brevo API ${resp.status}: ${json?.message || text}`);
+    err.code = json?.code || `HTTP_${resp.status}`;
+    err.brevoResponse = json || text;
+    throw err;
+  }
+  return { accepted: toList.map(t => t.email), rejected: [], response: `Brevo API OK msg=${json?.messageId || 'sent'}`, messageId: json?.messageId };
+}
+
 async function sendMailResilient(message, context) {
+  /* Si está configurada la API HTTP de Brevo, la usamos PRIMERO porque:
+     1. Funciona por HTTPS (443) — Render nunca lo bloquea
+     2. Devuelve errores explícitos cuando el sender no está verificado
+     3. No depende del SMTP user/pass */
+  if (BREVO_API_KEY) {
+    try {
+      console.log(`[BREVO-API] Enviando ${context} a ${message.to}...`);
+      const info = await sendViaBrevoApi(message);
+      lastEmailError = null;
+      lastEmailSuccess = {
+        at: new Date().toISOString(),
+        context,
+        transport: `${context}_brevo_api`,
+        to: String(message.to || '').slice(0, 80),
+        accepted: info.accepted?.length || null,
+        rejected: info.rejected?.length || null,
+        response: String(info.response || '').slice(0, 180),
+      };
+      console.log(`[BREVO-API] OK ${context}: ${lastEmailSuccess.response}`);
+      return info;
+    } catch (err) {
+      rememberEmailError(err, `${context}_brevo_api`);
+      console.error(`[BREVO-API] Fallo ${context}: ${err.message}`);
+      console.error('[BREVO-API] Respuesta detalle:', JSON.stringify(err.brevoResponse || {}).slice(0, 400));
+      /* No hacemos fallback a SMTP si la API devolvió error porque ese error
+         es la causa raíz que queremos ver (sender_not_authorized, etc.) */
+      throw err;
+    }
+  }
+
   const attempts = [];
 
   /* Brevo en Render: el puerto 587 frecuentemente falla por bloqueos
