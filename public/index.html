@@ -3110,39 +3110,111 @@ function setAuthTab(tab){
   setTimeout(renderGoogleButtons, 80);
 }
 
-function mostrarPantallaVerificacion(email, mensaje){
-  localStorage.removeItem('ej-pending-verify-email');
-  cerrarPanelVerificacion();
-  abrirAuth();
-  setAuthTab('login');
-  mostrarAuthMensaje('login-error', mensaje || 'Ya podes ingresar con Google o con tu cuenta.', 'warn');
-  return;
+function mostrarPantallaVerificacion(email, mensaje, password){
   _pendingVerifyEmail = (email || '').trim();
+  if(password) _pendingVerifyPassword = password;
   if(_pendingVerifyEmail) localStorage.setItem('ej-pending-verify-email', _pendingVerifyEmail);
+  cerrarAuth();
   abrirPanelVerificacion(_pendingVerifyEmail, mensaje);
-  var login = document.getElementById('form-login');
-  var reg = document.getElementById('form-registro');
-  var pending = document.getElementById('auth-verify-pending');
-  if(login) login.style.display = 'none';
-  if(reg) reg.style.display = 'none';
-  if(pending) pending.style.display = 'block';
-  var emailEl = document.getElementById('verify-pending-email');
-  var copy = document.getElementById('verify-pending-copy');
-  var status = document.getElementById('verify-pending-status');
-  var loginEmail = document.getElementById('login-email');
-  if(emailEl) emailEl.textContent = _pendingVerifyEmail || 'tu email';
-  if(copy) copy.textContent = mensaje || 'Te enviamos un enlace de verificación. Abrí tu Gmail y confirmá tu cuenta para comprar entradas, publicar eventos y recuperar tus QR.';
-  if(status) status.style.display = 'none';
-  if(loginEmail && _pendingVerifyEmail) loginEmail.value = _pendingVerifyEmail;
-  var tl = document.getElementById('auth-tab-login');
-  var tr = document.getElementById('auth-tab-reg');
-  if(tl){ tl.style.color = 'var(--t3)'; tl.style.borderBottomColor = 'transparent'; tl.style.fontWeight = '500'; }
-  if(tr){ tr.style.color = 'var(--t3)'; tr.style.borderBottomColor = 'transparent'; tr.style.fontWeight = '500'; }
-  setTimeout(function(){
-    var btn = document.getElementById('verify-resend-btn');
-    if(btn) btn.focus();
-  }, 120);
+  iniciarPollingVerificacion();
 }
+
+/* Polling: chequea cada 4s si el usuario ya verificó.
+   Cuando detecta verified=true, auto-loguea con el password en memoria
+   (caso cross-browser) o detecta el token vía storage event (mismo browser). */
+var _pendingVerifyEmail = '';
+var _pendingVerifyPassword = '';
+var _pollVerifyTimer = null;
+function iniciarPollingVerificacion(){
+  detenerPollingVerificacion();
+  if(!_pendingVerifyEmail || !BACKEND) return;
+  _pollVerifyTimer = setInterval(async function(){
+    try{
+      /* Si el otro tab ya guardó el token en localStorage, lo usamos */
+      var localToken = localStorage.getItem('ej-token');
+      if(localToken){
+        detenerPollingVerificacion();
+        await procesarLoginAutomaticoTrasVerificacion();
+        return;
+      }
+      var r = await fetch(BACKEND + '/api/auth/verification-status?email=' + encodeURIComponent(_pendingVerifyEmail));
+      var d = await r.json();
+      if(d.ok && d.verified){
+        detenerPollingVerificacion();
+        await procesarLoginAutomaticoTrasVerificacion();
+      }
+    }catch(e){ /* silencioso, reintenta al siguiente tick */ }
+  }, 4000);
+}
+function detenerPollingVerificacion(){
+  if(_pollVerifyTimer){ clearInterval(_pollVerifyTimer); _pollVerifyTimer = null; }
+}
+
+async function procesarLoginAutomaticoTrasVerificacion(){
+  /* Caso A: el otro tab guardó el token y la sesión ya está en localStorage */
+  var existingToken = localStorage.getItem('ej-token');
+  if(existingToken){
+    try{
+      var r = await fetch(BACKEND + '/api/auth/perfil', { headers:{ 'Authorization':'Bearer '+existingToken } });
+      var d = await r.json();
+      if(d.ok && d.usuario){
+        cerrarPanelVerificacion();
+        localStorage.removeItem('ej-pending-verify-email');
+        setAutenticado(d.usuario, existingToken);
+        irARol(d.usuario.rol);
+        return;
+      }
+    }catch(e){}
+  }
+  /* Caso B: tenemos el password en memoria — hacemos login automático */
+  if(_pendingVerifyPassword && _pendingVerifyEmail){
+    try{
+      var rb = await fetch(BACKEND + '/api/auth/login', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email: _pendingVerifyEmail, password: _pendingVerifyPassword })
+      });
+      var db = await rb.json();
+      if(db.ok && db.usuario && db.token){
+        cerrarPanelVerificacion();
+        localStorage.removeItem('ej-pending-verify-email');
+        _pendingVerifyPassword = '';
+        setAutenticado(db.usuario, db.token);
+        irARol(db.usuario.rol);
+        return;
+      }
+    }catch(e){}
+  }
+  /* Caso C: no tenemos password (refresh de página) — mostramos botón "Entrar" */
+  var statusEl = document.getElementById('verify-gate-status');
+  if(statusEl){
+    statusEl.style.display = 'block';
+    statusEl.style.background = 'rgba(61,170,106,.1)';
+    statusEl.style.color = 'var(--g)';
+    statusEl.style.border = '1px solid rgba(61,170,106,.3)';
+    statusEl.innerHTML = '<strong>✓ Cuenta verificada</strong><br>Ya podés ingresar con tu email y contraseña.';
+  }
+  var resendBtn = document.getElementById('verify-gate-resend');
+  if(resendBtn){
+    resendBtn.textContent = 'Ir al login';
+    resendBtn.onclick = function(){
+      cerrarPanelVerificacion();
+      localStorage.removeItem('ej-pending-verify-email');
+      abrirAuth();
+      setAuthTab('login');
+      var loginEmail = document.getElementById('login-email');
+      if(loginEmail) loginEmail.value = _pendingVerifyEmail;
+    };
+  }
+}
+
+/* Listener de storage events: cuando otro tab guarda el token (caso "click verify link
+   en mismo browser pero otra pestaña"), auto-detectamos y logueamos. */
+window.addEventListener('storage', function(ev){
+  if(ev.key === 'ej-token' && ev.newValue && _pendingVerifyEmail){
+    detenerPollingVerificacion();
+    procesarLoginAutomaticoTrasVerificacion();
+  }
+});
 
 function abrirPanelVerificacion(email, mensaje){
   var panel = document.getElementById('verify-gate');
@@ -3185,6 +3257,8 @@ function abrirPanelVerificacion(email, mensaje){
 function cerrarPanelVerificacion(){
   var panel = document.getElementById('verify-gate');
   if(panel) panel.style.display = 'none';
+  /* Si el usuario cierra el panel, detenemos el polling para no consumir CPU */
+  if(typeof detenerPollingVerificacion === 'function') detenerPollingVerificacion();
 }
 
 function restaurarVerificacionPendiente(){
@@ -3319,7 +3393,8 @@ async function doRegistro(event){
     var d = result.data;
     if(d.ok){
       if(d.needs_verification){
-        mostrarPantallaVerificacion(email, d.message || 'Cuenta creada. Te enviamos un email de verificación. Revisá tu Gmail para activar la cuenta antes de continuar.');
+        /* Pasamos el password en memoria para auto-login cuando el usuario verifique */
+        mostrarPantallaVerificacion(email, d.message || 'Cuenta creada. Te enviamos un email de verificación. Revisá tu Gmail para activar la cuenta antes de continuar.', pass);
         document.getElementById('reg-pass').value = '';
         return;
       }

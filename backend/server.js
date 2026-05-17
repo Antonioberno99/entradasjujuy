@@ -890,6 +890,23 @@ app.get('/api/auth/verificar-email', async (req, res) => {
   }
 });
 
+/* Polling: el frontend chequea cada 3s si el usuario ya verificó su email.
+   Solo devuelve {verified:bool}, no datos sensibles ni token. */
+app.get('/api/auth/verification-status', async (req, res) => {
+  const email = normalizeEmail(req.query?.email || '');
+  if (!email) return res.status(400).json({ ok: false, error: 'Falta email' });
+  try {
+    const { rows } = await db.query(
+      'SELECT email_verified FROM usuarios WHERE email = $1 LIMIT 1',
+      [email]
+    );
+    if (!rows.length) return res.json({ ok: true, verified: false, exists: false });
+    res.json({ ok: true, verified: !!rows[0].email_verified, exists: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.post('/api/auth/reenviar-verificacion', async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   if (!email) return res.status(400).json({ ok: false, error: 'Falta email' });
