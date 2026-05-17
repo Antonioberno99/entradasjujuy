@@ -2106,7 +2106,8 @@ async function procesarPago(ordenId, pago) {
  
   const { rows: items } = await db.query(`
     SELECT oi.*, te.nombre AS tipo_nombre, te.hora_limite, te.promo_paga, te.promo_recibe,
-           ev.id AS evento_id, ev.nombre AS evento_nombre, ev.fecha, ev.hora, ev.lugar
+           ev.id AS evento_id, ev.nombre AS evento_nombre, ev.fecha, ev.hora, ev.lugar,
+           ev.descripcion AS descripcion_evento
     FROM orden_items oi
     JOIN tipos_entrada te ON te.id = oi.tipo_entrada_id
     JOIN eventos ev ON ev.id = te.evento_id
@@ -2143,6 +2144,7 @@ async function procesarPago(ordenId, pago) {
         id: entradaId, token, qrDataUrl,
         tipo: item.tipo_nombre + (promoActiva ? ` (Pack ${promoRecibe}x${promoPaga})` : ''),
         evento: item.evento_nombre, fecha: item.fecha, hora: item.hora, lugar: item.lugar,
+        descripcion_evento: item.descripcion_evento,
         hora_limite: item.hora_limite,
         fecha_compra: orden.created_at || orden.fecha_pago,
         numero: i+1, total_tipo: totalQrs,
@@ -2168,7 +2170,7 @@ app.get('/api/orden/:id', async (req, res) => {
       const { rows: entradas } = await db.query(`
         SELECT en.id, en.estado, en.numero, en.token_qr,
                te.nombre AS tipo, te.hora_limite, te.promo_paga, te.promo_recibe, te.descripcion_extra,
-               ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar
+               ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar, ev.descripcion AS descripcion_evento
         FROM entradas en
         JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
         JOIN eventos ev ON ev.id = te.evento_id
@@ -2199,7 +2201,7 @@ app.post('/api/orden/:id/reenviar', requireAuth, async (req, res) => {
     const { rows: entradasDb } = await db.query(`
       SELECT en.id, en.numero, en.token_qr,
              te.nombre AS tipo, te.hora_limite, te.promo_paga, te.promo_recibe,
-             ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar,
+             ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar, ev.descripcion AS descripcion_evento,
              COUNT(*) OVER (PARTITION BY en.tipo_entrada_id) AS total_tipo
       FROM entradas en
       JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
@@ -2228,7 +2230,7 @@ app.get('/api/mis-entradas', requireAuth, async (req, res) => {
              o.fecha_pago, o.created_at,
              en.id AS entrada_id, en.numero, en.estado AS entrada_estado, en.token_qr,
              te.nombre AS tipo, te.hora_limite, te.promo_paga, te.promo_recibe, te.descripcion_extra,
-             ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar
+             ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar, ev.descripcion AS descripcion_evento
       FROM ordenes o
       JOIN entradas en ON en.orden_id = o.id
       JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
@@ -2265,6 +2267,7 @@ app.get('/api/mis-entradas', requireAuth, async (req, res) => {
         promo_recibe: row.promo_recibe,
         descripcion_extra: row.descripcion_extra,
         evento: row.evento,
+        descripcion_evento: row.descripcion_evento,
         fecha: row.fecha,
         hora: row.hora,
         lugar: row.lugar,
@@ -2365,6 +2368,18 @@ async function enviarEmail(orden, entradas) {
     contentType: 'image/png',
     cid: `qr-${e.id}@entradasjujuy`,
   }));
+
+  /* Descripción del evento (info que escribió el organizador: horarios, qué incluye,
+     restricciones, contacto, etc.). Sale UNA vez al principio, no por cada QR.
+     Sanitizo HTML básico para prevenir inyecciones desde la descripción. */
+  const escapeHtml = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const descripcionEvento = String((entradas[0] && entradas[0].descripcion_evento) || '').trim();
+  const descripcionBox = descripcionEvento
+    ? `<div style="background:#fafafa;border:1px solid #eaeaea;border-left:4px solid #C4692B;border-radius:10px;padding:14px 16px;margin:0 0 20px">
+         <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#8b7a66;margin-bottom:8px;font-weight:700">Información del evento</div>
+         <div style="font-size:13px;line-height:1.6;color:#3d342a;white-space:pre-wrap">${escapeHtml(descripcionEvento)}</div>
+       </div>`
+    : '';
   const qrHtml = entradas.map(e => {
     const horaLim = e.hora_limite ? String(e.hora_limite).slice(0, 5) : '';
     const fechaFmt = e.fecha ? new Date(e.fecha).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : '';
@@ -2408,8 +2423,8 @@ async function enviarEmail(orden, entradas) {
     to: orden.comprador_email,
     subject: `${esCortesia ? '🎟 Te invitaron a' : 'Tus entradas'} - ${entradas[0]?.evento}`,
     text: esCortesia
-      ? `Hola ${orden.comprador_nombre}. ${saludoCortesia}${mensajeInvitacion ? `\n\nMensaje${organizadorNombre ? ' de '+organizadorNombre : ''}: "${mensajeInvitacion}"\n` : ''}\nAdjuntamos tus QR para ingresar al evento. También podés recuperarlas desde tu cuenta en ${FRONTEND_URL}.`
-      : `Hola ${orden.comprador_nombre}. Tu compra fue confirmada. Adjuntamos tus QR para ingresar al evento. También podés recuperar tus entradas desde tu cuenta en ${FRONTEND_URL}.`,
+      ? `Hola ${orden.comprador_nombre}. ${saludoCortesia}${mensajeInvitacion ? `\n\nMensaje${organizadorNombre ? ' de '+organizadorNombre : ''}: "${mensajeInvitacion}"\n` : ''}${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar al evento. También podés recuperarlas desde tu cuenta en ${FRONTEND_URL}.`
+      : `Hola ${orden.comprador_nombre}. Tu compra fue confirmada.${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar al evento. También podés recuperar tus entradas desde tu cuenta en ${FRONTEND_URL}.`,
     html: `<div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif">
       <div style="background:#0a0704;padding:22px;text-align:center;border-radius:10px 10px 0 0">
         <h1 style="color:#C4692B;margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px">Entradas<span style="color:#3A6FA0">Jujuy</span></h1>
@@ -2418,6 +2433,7 @@ async function enviarEmail(orden, entradas) {
       <div style="padding:24px;background:#fff;border-left:1px solid #eadfd3;border-right:1px solid #eadfd3">
         <p style="margin:0 0 14px;font-size:15px;color:#1f1a14;line-height:1.5">Hola <strong>${orden.comprador_nombre}</strong>, ${esCortesia ? saludoCortesia : 'tu compra fue confirmada.'}</p>
         ${mensajeBox}
+        ${descripcionBox}
         ${qrHtml}
       </div>
     </div>`,

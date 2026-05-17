@@ -1571,6 +1571,11 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
       </div>
     </div>
     <div class="compra-body">
+      <!-- Descripción del evento (horarios, info adicional del organizador) -->
+      <div id="compra-evento-desc-wrap" style="display:none;margin-bottom:18px;padding:14px 14px 16px;background:rgba(196,105,43,.05);border:1px solid rgba(196,105,43,.18);border-radius:10px">
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:8px;font-weight:700">Información del evento</div>
+        <div id="compra-evento-desc" style="font-size:13px;color:var(--t1);line-height:1.6;white-space:pre-wrap"></div>
+      </div>
       <div class="compra-stl">Seleccioná tus entradas</div>
       <div class="tk-tp" id="ticket-row-g"><div><div class="tk-nm" id="ticket-name-g">General</div></div><div class="qty"><button class="qty-btn" onclick="QQ('g',-1)">-</button><span class="qty-n" id="q-g">0</span><button class="qty-btn" onclick="QQ('g',1)">+</button></div><div id="ticket-price-g" style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--s);flex-shrink:0">$0</div></div>
       <div class="tk-tp" id="ticket-row-p" style="display:none"><div><div class="tk-nm" id="ticket-name-p">Platea preferencial</div></div><div class="qty"><button class="qty-btn" onclick="QQ('p',-1)">-</button><span class="qty-n" id="q-p">0</span><button class="qty-btn" onclick="QQ('p',1)">+</button></div><div id="ticket-price-p" style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--s);flex-shrink:0">$0</div></div>
@@ -3712,12 +3717,15 @@ function renderPanelMisEntradas(orders){
   }
   body.innerHTML = orders.map(function(order){
     var entradas = Array.isArray(order.entradas) ? order.entradas : [];
+    var descripcionEvento = (entradas[0] && entradas[0].descripcion_evento) ? String(entradas[0].descripcion_evento).trim() : '';
     return '<article style="border:1px solid var(--b1);border-radius:16px;background:var(--bg2);padding:14px">'+
       '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px">'+
         '<div><div style="font-size:12px;color:var(--t2);text-transform:uppercase;letter-spacing:.08em">Orden '+escapeHtml(order.id || '')+'</div>'+
         '<strong style="display:block;color:var(--t1);font-size:16px;margin-top:4px">'+escapeHtml(entradas[0] && entradas[0].evento ? entradas[0].evento : 'Entrada')+'</strong></div>'+
         '<button onclick="reenviarTicketsCuenta(&quot;'+escapeHtml(order.id || '')+'&quot;, this)" style="height:38px;border-radius:10px;border:1px solid var(--b1);background:var(--bg);color:var(--t1);padding:0 12px;cursor:pointer;font-size:12px">Reenviar email</button>'+
       '</div>'+
+      /* Descripción del evento — la info importante del organizador (horarios, etc) */
+      (descripcionEvento ? '<div style="margin-bottom:12px;padding:10px 12px;background:rgba(196,105,43,.06);border:1px solid rgba(196,105,43,.18);border-left:3px solid var(--t);border-radius:8px"><div style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin-bottom:5px;font-weight:600">Información del evento</div><div style="font-size:12px;color:var(--t1);line-height:1.55;white-space:pre-wrap">'+escapeHtml(descripcionEvento)+'</div></div>' : '')+
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">'+entradas.map(function(e){
         var fechaFmt = e.fecha ? formatearFecha(String(e.fecha).slice(0,10)) : '';
         var horaLim = e.hora_limite ? String(e.hora_limite).slice(0,5) : '';
@@ -4268,6 +4276,20 @@ function actualizarVistaCompra(ev){
   if(flyerWrap && flyerImg){
     if(ev.flyer){ flyerImg.src = ev.flyer; flyerWrap.style.display = 'block'; }
     else { flyerWrap.style.display = 'none'; flyerImg.src = ''; }
+  }
+  /* Descripción del evento: ahí está la info que escribió el organizador
+     (horarios, qué incluye, restricciones, contacto, etc.) */
+  var descWrap = document.getElementById('compra-evento-desc-wrap');
+  var descEl = document.getElementById('compra-evento-desc');
+  if(descWrap && descEl){
+    var descTxt = String(ev.desc || ev.descripcion || '').trim();
+    if(descTxt){
+      descEl.textContent = descTxt;
+      descWrap.style.display = 'block';
+    } else {
+      descWrap.style.display = 'none';
+      descEl.textContent = '';
+    }
   }
   ['g','p','v'].forEach(function(key, idx){
     var tipo = (ev.tipos_entrada || [])[idx];
