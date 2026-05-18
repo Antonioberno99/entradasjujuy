@@ -225,9 +225,22 @@ async function refreshSellerMpToken(seller) {
   return rows[0] || seller;
 }
  
-// JWT
+// JWT — en producción es CRÍTICO que esté configurado y sea estable entre deploys.
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) console.warn('⚠ JWT_SECRET no configurado en .env — se usará un valor temporal INSEGURO');
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ JWT_SECRET no configurado en producción — abortando arranque por seguridad');
+    process.exit(1);
+  }
+  console.warn('⚠ JWT_SECRET no configurado — usando valor temporal INSEGURO (solo dev)');
+}
+if (JWT_SECRET && JWT_SECRET.length < 32) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ JWT_SECRET es demasiado corto (<32 chars) en producción — abortando');
+    process.exit(1);
+  }
+  console.warn('⚠ JWT_SECRET tiene menos de 32 caracteres — usar uno más largo en producción');
+}
 const jwtSecret = JWT_SECRET || 'dev_only_change_in_production_' + Date.now();
  
 // URLs
@@ -465,9 +478,15 @@ app.get('/health', (req, res) => res.json({
 }));
 
 /* Endpoint diagnóstico: prueba conexión TCP a varios puertos SMTP comunes
-   Uso: GET /api/admin/smtp-probe
-   Sin auth — solo testea conectividad, no manda emails. */
+   Uso: GET /api/admin/smtp-probe?key=ADMIN_KEY
+   Requiere ADMIN_KEY (configurar en Render). Sin esa env var, el endpoint
+   está deshabilitado para evitar fingerprinting y carga indebida. */
 app.get('/api/admin/smtp-probe', async (req, res) => {
+  const adminKey = String(process.env.ADMIN_KEY || '').trim();
+  if (!adminKey) return res.status(503).json({ ok: false, error: 'ADMIN_KEY no configurada — endpoint deshabilitado' });
+  if (String(req.query.key || '').trim() !== adminKey) {
+    return res.status(401).json({ ok: false, error: 'ADMIN_KEY inválida' });
+  }
   const net = require('net');
   const targets = [
     { host: 'smtp.hostinger.com', port: 465, label: 'hostinger_465_ssl' },
@@ -901,7 +920,8 @@ app.get('/api/auth/verificar-email', async (req, res) => {
 });
 
 /* Polling: el frontend chequea cada 3s si el usuario ya verificó su email.
-   Solo devuelve {verified:bool}, no datos sensibles ni token. */
+   Devuelve siempre {verified:bool} SIN revelar si el email existe o no
+   — esto previene enumeración de usuarios para phishing dirigido. */
 app.get('/api/auth/verification-status', async (req, res) => {
   const email = normalizeEmail(req.query?.email || '');
   if (!email) return res.status(400).json({ ok: false, error: 'Falta email' });
@@ -910,8 +930,10 @@ app.get('/api/auth/verification-status', async (req, res) => {
       'SELECT email_verified FROM usuarios WHERE email = $1 LIMIT 1',
       [email]
     );
-    if (!rows.length) return res.json({ ok: true, verified: false, exists: false });
-    res.json({ ok: true, verified: !!rows[0].email_verified, exists: true });
+    /* Si no existe la cuenta, devolvemos `verified:false` igual que si existiera
+       pero estuviera sin verificar. Un atacante no puede distinguir los casos. */
+    const verified = rows.length ? !!rows[0].email_verified : false;
+    res.json({ ok: true, verified });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
