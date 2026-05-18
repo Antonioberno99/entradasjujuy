@@ -3434,15 +3434,20 @@ async function doLogin(event){
   try {
     var result = await authFetchJson(BACKEND+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
     var d = result.data;
-    if(d.ok){ setAutenticado(d.usuario,d.token); cerrarAuth(); setTimeout(function(){ irARol(d.usuario.rol); },400); }
+    /* Caso login OK con token: autenticar */
+    if(d.ok && d.token && d.usuario){
+      setAutenticado(d.usuario, d.token);
+      cerrarAuth();
+      setTimeout(function(){ irARol(d.usuario.rol); }, 400);
+    }
+    /* Caso "email no verificado": mostrar pantalla de verificación */
+    else if(d.ok && d.needs_verification || d.code === 'email_not_verified'){
+      mostrarPantallaVerificacion(email, d.message || d.error || 'Tu email todavía no está verificado. Te reenviamos el enlace; revisá tu Gmail antes de ingresar.', pass);
+      return;
+    }
+    /* Cualquier otro error */
     else {
-      if(d.code === 'email_not_verified'){
-        mostrarPantallaVerificacion(email, d.error || 'Tu email todavía no está verificado. Te reenviamos el enlace de verificación.');
-        return;
-      }
       mostrarAuthMensaje('login-error', d.error || 'Error al ingresar', 'error');
-      var resend = document.getElementById('resend-verify-btn');
-      if(resend && d.code === 'email_not_verified') resend.style.display = 'block';
     }
   } catch(e){ mostrarAuthMensaje('login-error', e && e.name === 'AbortError' ? 'El servidor tardó demasiado. Intentá nuevamente.' : 'Sin conexión al servidor','error'); }
   finally { setAuthBusy('login-submit', false); }

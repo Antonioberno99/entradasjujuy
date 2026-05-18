@@ -627,6 +627,10 @@ async function sendVerificationEmail(user, token) {
     throw new Error('SMTP no configurado para enviar verificacion');
   }
   const verifyUrl = `${FRONTEND_URL}/?verify_email=${encodeURIComponent(token)}`;
+  /* Escape para prevenir XSS desde el nombre del usuario en clientes de email
+     que renderizan HTML (Outlook, etc.) */
+  const escapeHtmlEmail = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const safeName = escapeHtmlEmail(user.nombre);
   const message = {
     from: MAIL_FROM,
     to: user.email,
@@ -638,7 +642,7 @@ async function sendVerificationEmail(user, token) {
         <div style="color:#9A8670;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:6px">Ticketera y guía cultural de Jujuy</div>
       </div>
       <div style="padding:32px 28px;background:#fff;border:1px solid #eadfd3;border-top:0">
-        <h2 style="margin:0 0 14px;color:#0a0704;font-size:22px">¡Bienvenido, ${user.nombre}!</h2>
+        <h2 style="margin:0 0 14px;color:#0a0704;font-size:22px">¡Bienvenido, ${safeName}!</h2>
         <p style="line-height:1.6;margin:0 0 18px;font-size:14px;color:#3d342a">Gracias por sumarte. Tu cuenta ya está creada — solo falta un paso: <strong>verificar que este email es tuyo</strong>. Tocá el botón:</p>
         <div style="text-align:center;margin:24px 0">
           <a href="${verifyUrl}" style="display:inline-block;background:#C4692B;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:700;font-size:14px;letter-spacing:.3px">Verificar mi cuenta</a>
@@ -837,17 +841,23 @@ app.post('/api/auth/login', async (req, res) => {
     if (!user || !user.activo || !verifyPassword(password, user.password_hash)) {
       return res.status(401).json({ ok: false, error: 'Email o contraseña incorrectos' });
     }
+    /* Si el email NO está verificado, BLOQUEAR el login y reenviar el email de
+       verificación. ANTES auto-verificaba — eso permitía squatting con emails
+       ajenos: alguien registra con tu email + un password, hace login y queda
+       verificado sin haber probado nunca ser dueño del email. */
     if (!user.email_verified) {
-      const { rows } = await db.query(`
-        UPDATE usuarios
-        SET email_verified = true,
-            email_verified_at = COALESCE(email_verified_at, NOW()),
-            email_verification_token_hash = NULL,
-            email_verification_expires_at = NULL
-        WHERE id = $1
-        RETURNING id, nombre, email, rol, avatar_url, auth_provider, email_verified
-      `, [user.id]);
-      user = rows[0] || user;
+      try {
+        const token = await issueEmailVerification(user);
+        await sendVerificationEmail(user, token);
+      } catch (err) {
+        console.error('[AUTH LOGIN VERIFY RESEND]', err.message);
+      }
+      return res.status(403).json({
+        ok: true,
+        needs_verification: true,
+        email: user.email,
+        message: 'Tu cuenta aún no está verificada. Te reenviamos el email; revisá tu Gmail y confirmá antes de ingresar.',
+      });
     }
 
     res.json(authPayload(user));
@@ -2398,11 +2408,11 @@ async function enviarEmail(orden, entradas) {
     return `
     <div style="border:1px solid #eeeeee;border-radius:20px;padding:16px;margin-bottom:16px;background:#ffffff;box-shadow:0 8px 22px rgba(10,7,4,.06)">
       <div style="display:inline-block;background:#0a0704;color:#C4692B;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;margin-bottom:12px">EntradasJujuy</div>
-      <h3 style="color:#0a0704;margin:0 0 5px;font-size:18px;line-height:1.12">${e.evento}</h3>
-      <p style="color:#776b5d;font-size:12px;line-height:1.4;margin:0 0 12px">${fechaFmt}${e.hora ? ' · ' + e.hora + ' hs' : ''}${e.lugar ? ' · ' + e.lugar : ''}</p>
+      <h3 style="color:#0a0704;margin:0 0 5px;font-size:18px;line-height:1.12">${safeEntradaEvento(e)}</h3>
+      <p style="color:#776b5d;font-size:12px;line-height:1.4;margin:0 0 12px">${fechaFmt}${e.hora ? ' · ' + escapeHtml(String(e.hora)) + ' hs' : ''}${e.lugar ? ' · ' + safeEntradaLugar(e) : ''}</p>
       <div style="background:#fafafa;border:1px solid #eeeeee;border-radius:12px;padding:10px 12px;margin-bottom:14px">
         <div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#8b7a66;margin-bottom:3px">Tipo de entrada</div>
-        <div style="font-size:14px;font-weight:700;color:#0a0704">${e.tipo}</div>
+        <div style="font-size:14px;font-weight:700;color:#0a0704">${safeEntradaTipo(e)}</div>
         <div style="font-size:11px;color:#776b5d;margin-top:4px">Entrada ${e.numero} de ${e.total_tipo}</div>
       </div>
       <div style="text-align:center;background:#fff;border:1px solid #f1f1f1;border-radius:18px;padding:8px;width:150px;margin:0 auto">
@@ -2414,11 +2424,14 @@ async function enviarEmail(orden, entradas) {
   `;
   }).join('');
  
-  /* Mensaje personalizado del organizador (solo cortesía) — escape simple anti-XSS */
-  const mensajeInvitacion = String(orden.mensaje_invitacion || '').trim()
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const organizadorNombre = String(orden.organizador_nombre || '').trim()
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  /* Escape para prevenir XSS desde nombres/datos que entran al HTML del email */
+  const mensajeInvitacion = escapeHtml(String(orden.mensaje_invitacion || '').trim());
+  const organizadorNombre = escapeHtml(String(orden.organizador_nombre || '').trim());
+  const safeCompradorNombre = escapeHtml(String(orden.comprador_nombre || '').trim());
+  /* También escapamos los datos por entrada que se interpolan en qrHtml */
+  const safeEntradaEvento = (e) => escapeHtml(String(e.evento || ''));
+  const safeEntradaLugar = (e) => escapeHtml(String(e.lugar || ''));
+  const safeEntradaTipo = (e) => escapeHtml(String(e.tipo || ''));
   const mensajeBox = esCortesia && mensajeInvitacion
     ? `<div style="background:linear-gradient(135deg,#fff5e6,#fff);border:1px solid #ffd49a;border-left:4px solid #C4692B;border-radius:10px;padding:16px;margin:0 0 20px">
          <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#a05a10;margin-bottom:8px;font-weight:700">Mensaje${organizadorNombre ? ' de ' + organizadorNombre : ' del organizador'}</div>
@@ -2443,7 +2456,7 @@ async function enviarEmail(orden, entradas) {
         ${esCortesia ? '<div style="color:#9A8670;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:6px">🎟 Invitación de cortesía</div>' : ''}
       </div>
       <div style="padding:24px;background:#fff;border-left:1px solid #eadfd3;border-right:1px solid #eadfd3">
-        <p style="margin:0 0 14px;font-size:15px;color:#1f1a14;line-height:1.5">Hola <strong>${orden.comprador_nombre}</strong>, ${esCortesia ? saludoCortesia : 'tu compra fue confirmada.'}</p>
+        <p style="margin:0 0 14px;font-size:15px;color:#1f1a14;line-height:1.5">Hola <strong>${safeCompradorNombre}</strong>, ${esCortesia ? saludoCortesia : 'tu compra fue confirmada.'}</p>
         ${mensajeBox}
         ${descripcionBox}
         ${qrHtml}
