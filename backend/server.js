@@ -2,6 +2,7 @@ require('dotenv').config();
 const express      = require('express');
 const cors         = require('cors');
 const helmet       = require('helmet');
+const rateLimit    = require('express-rate-limit');
 const { Pool }     = require('pg');
 const QRCode       = require('qrcode');
 const nodemailer   = require('nodemailer');
@@ -28,6 +29,51 @@ function envList(value = '') {
  
 // Seguridad HTTP
 app.use(helmet());
+
+/* Render corre detrás de un proxy — necesitamos trust proxy para que el rate
+   limiter use la IP real del cliente y no la del load balancer. */
+app.set('trust proxy', 1);
+
+/* === RATE LIMITERS ===
+   Diferentes limites según el tipo de endpoint. Si la IP supera el límite
+   recibe 429. Los handlers que devolvían needs_verification:true normalmente
+   tienen status 200 — los excluimos del conteo cuando es respuesta exitosa. */
+const authLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, /* 5 min */
+  max: 20, /* 20 intentos por IP cada 5 min */
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Demasiados intentos. Esperá unos minutos antes de volver a probar.' },
+});
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, /* 1h */
+  max: 10, /* 10 cuentas por IP por hora */
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Demasiadas cuentas creadas desde tu IP. Esperá una hora antes de volver a registrar.' },
+});
+const emailResendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, /* 15 min */
+  max: 5, /* 5 reenvíos de verificación por IP cada 15 min */
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Demasiados reenvíos. Esperá 15 minutos.' },
+});
+const verifyStatusLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, /* 1 min */
+  max: 30, /* polling máximo 30 hits/min/IP — frontend hace 1 cada 4s = 15/min, deja margen */
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => false,
+  message: { ok: false, error: 'Demasiados chequeos. Reducí la frecuencia.' },
+});
+const giftLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Demasiadas invitaciones enviadas. Esperá una hora.' },
+});
  
 // CORS — restringir en producción
 const allowedOrigins = new Set([
@@ -803,7 +849,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // Alias usado por el HTML principal.
-app.post('/api/auth/registro', async (req, res) => {
+app.post('/api/auth/registro', registerLimiter, async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim();
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || '');
@@ -849,7 +895,7 @@ app.post('/api/auth/registro', async (req, res) => {
 });
 
 // ── Login
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || '');
 
@@ -922,7 +968,7 @@ app.get('/api/auth/verificar-email', async (req, res) => {
 /* Polling: el frontend chequea cada 3s si el usuario ya verificó su email.
    Devuelve siempre {verified:bool} SIN revelar si el email existe o no
    — esto previene enumeración de usuarios para phishing dirigido. */
-app.get('/api/auth/verification-status', async (req, res) => {
+app.get('/api/auth/verification-status', verifyStatusLimiter, async (req, res) => {
   const email = normalizeEmail(req.query?.email || '');
   if (!email) return res.status(400).json({ ok: false, error: 'Falta email' });
   try {
@@ -939,7 +985,7 @@ app.get('/api/auth/verification-status', async (req, res) => {
   }
 });
 
-app.post('/api/auth/reenviar-verificacion', async (req, res) => {
+app.post('/api/auth/reenviar-verificacion', emailResendLimiter, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   if (!email) return res.status(400).json({ ok: false, error: 'Falta email' });
 
@@ -964,7 +1010,7 @@ app.post('/api/auth/reenviar-verificacion', async (req, res) => {
   }
 });
 
-app.post('/api/auth/google', async (req, res) => {
+app.post('/api/auth/google', authLimiter, async (req, res) => {
   const { credential } = req.body || {};
   const requestedRole = String(req.body?.rol || 'comprador').trim();
   const allowedRoles = new Set(['comprador', 'organizador', 'artista', 'servicios', 'admin']);
@@ -1757,7 +1803,7 @@ app.get('/api/organizador/stats', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/organizador/entradas-regalo', requireAuth, async (req, res) => {
+app.post('/api/organizador/entradas-regalo', giftLimiter, requireAuth, async (req, res) => {
   const eventoId = String(req.body?.evento_id || '').trim();
   const tipoEntradaId = String(req.body?.tipo_entrada_id || '').trim();
   const nombre = String(req.body?.nombre || req.body?.comprador_nombre || '').trim();
