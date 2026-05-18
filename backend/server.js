@@ -2160,12 +2160,24 @@ async function procesarPago(ordenId, pago) {
   return entradas;
 }
  
-// ── ESTADO DE ORDEN
-app.get('/api/orden/:id', async (req, res) => {
+// ── ESTADO DE ORDEN — requireAuth + verificación de ownership
+app.get('/api/orden/:id', requireAuth, async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT * FROM ordenes WHERE id = $1', [req.params.id]);
+    const { rows } = await db.query(`
+      SELECT o.*, ev.organizador_id
+      FROM ordenes o
+      LEFT JOIN eventos ev ON ev.id = o.evento_id
+      WHERE o.id = $1
+    `, [req.params.id]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'No encontrada' });
     const orden = rows[0];
+    /* Solo el comprador (mismo email), el organizador del evento, o admin pueden ver */
+    const esComprador = normalizeEmail(orden.comprador_email) === normalizeEmail(req.user.email);
+    const esOrganizador = String(orden.organizador_id || '') === String(req.user.id);
+    const esAdmin = req.user.rol === 'admin';
+    if (!esComprador && !esOrganizador && !esAdmin) {
+      return res.status(403).json({ ok: false, error: 'No tenés permiso para ver esta orden' });
+    }
     if (orden.estado === 'pagada' || orden.estado === 'cortesia') {
       const { rows: entradas } = await db.query(`
         SELECT en.id, en.estado, en.numero, en.token_qr,
@@ -2180,9 +2192,9 @@ app.get('/api/orden/:id', async (req, res) => {
         ...entrada,
         qr_data_url: await makeTicketQr(entrada.token_qr),
       })));
-      return res.json({ ok: true, data: { ...orden, entradas: entradasConQr } });
+      return res.json({ ok: true, data: { ...orden, organizador_id: undefined, entradas: entradasConQr } });
     }
-    res.json({ ok: true, data: orden });
+    res.json({ ok: true, data: { ...orden, organizador_id: undefined } });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

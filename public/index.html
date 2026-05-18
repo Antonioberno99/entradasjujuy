@@ -2243,7 +2243,7 @@ async function verificarPagoMP() {
       limpiarOrdenPendiente();
       // Obtener el email del comprador para mostrarlo
       try {
-        const ordenRes = await fetch(`${BACKEND}/api/orden/${ordenId}`);
+        const ordenRes = await fetch(`${BACKEND}/api/orden/${ordenId}`, { headers: apiHeaders() });
         const ordenData = await ordenRes.json();
         if (ordenData.ok) {
           document.getElementById('exito-email').textContent = ordenData.data.comprador_email;
@@ -2380,7 +2380,7 @@ async function verificarPagoManual(){
       document.getElementById('exito-ok').style.display = 'block';
       // Obtener email del comprador
       try {
-        const r2 = await fetch(`${BACKEND}/api/orden/${_ordenActual}`);
+        const r2 = await fetch(`${BACKEND}/api/orden/${_ordenActual}`, { headers: apiHeaders() });
         const d2 = await r2.json();
         if (d2.ok) {
           document.getElementById('exito-email').textContent = d2.data.comprador_email;
