@@ -2511,12 +2511,19 @@ app.post('/api/validar-qr', requireAuth, async (req, res) => {
     if (entrada.estado === 'usada') return res.json({ ok: true, valida: false, motivo: 'Entrada ya utilizada', usada_el: entrada.fecha_uso, entrada });
     if (entrada.estado === 'cancelada') return res.json({ ok: true, valida: false, motivo: 'Entrada cancelada', entrada });
 
-    /* Validacion de hora limite (ej: early bird hasta las 23:00) */
+    /* Validacion de hora limite (ej: early bird hasta las 23:00).
+       Render corre en UTC. Convertimos la hora actual a la TZ de Jujuy
+       (America/Argentina/Jujuy = UTC-3, sin DST) para comparar contra
+       el HH:MM guardado en la DB (que el organizador escribió en hora local). */
     if (entrada.hora_limite) {
-      const now = new Date();
-      const horaActual = now.toTimeString().slice(0, 5); /* HH:MM */
+      const horaActualJujuy = new Intl.DateTimeFormat('es-AR', {
+        timeZone: 'America/Argentina/Jujuy',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date()); /* devuelve "HH:MM" en hora Jujuy */
       const horaLimiteStr = String(entrada.hora_limite).slice(0, 5);
-      if (horaActual > horaLimiteStr) {
+      if (horaActualJujuy > horaLimiteStr) {
         return res.json({
           ok: true, valida: false,
           motivo: `Esta entrada solo era valida hasta las ${horaLimiteStr}`,
