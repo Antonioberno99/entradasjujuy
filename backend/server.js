@@ -2065,9 +2065,51 @@ app.post('/api/compra/verificar', async (req, res) => {
   }
 });
  
+/* Verificación de firma del webhook de Mercado Pago.
+   MP envía un header "x-signature" con formato "ts=NNN,v1=HMAC_HEX" donde el
+   HMAC se calcula sobre `id:DATA_ID;request-id:HEADER_REQUEST_ID;ts:NNN;`
+   usando la secret key del webhook (configurada en MP Dashboard → Webhooks).
+   Si MP_WEBHOOK_SECRET no está configurada, se loguea un warning pero se
+   acepta el webhook (compatibilidad temporal). */
+const MP_WEBHOOK_SECRET = String(process.env.MP_WEBHOOK_SECRET || '').trim();
+
+function verifyMpWebhookSignature(req, paymentId) {
+  if (!MP_WEBHOOK_SECRET) {
+    console.warn('[WEBHOOK] MP_WEBHOOK_SECRET no configurado — firma NO verificada. Configurar en Render para producción.');
+    return true;
+  }
+  const sigHeader = String(req.headers['x-signature'] || '');
+  const reqIdHeader = String(req.headers['x-request-id'] || '');
+  if (!sigHeader || !paymentId) {
+    console.warn('[WEBHOOK] Falta x-signature o paymentId — rechazado');
+    return false;
+  }
+  /* Parsear "ts=NNN,v1=HEX" */
+  const parts = sigHeader.split(',').reduce((acc, p) => {
+    const [k, v] = p.trim().split('=');
+    if (k && v) acc[k.trim()] = v.trim();
+    return acc;
+  }, {});
+  if (!parts.ts || !parts.v1) {
+    console.warn('[WEBHOOK] x-signature mal formado — rechazado');
+    return false;
+  }
+  const manifest = `id:${paymentId};request-id:${reqIdHeader};ts:${parts.ts};`;
+  const expectedHmac = crypto.createHmac('sha256', MP_WEBHOOK_SECRET).update(manifest).digest('hex');
+  try {
+    const a = Buffer.from(expectedHmac, 'hex');
+    const b = Buffer.from(parts.v1, 'hex');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
 // ── WEBHOOK MP
 app.post('/api/webhook/mp', async (req, res) => {
-  res.sendStatus(200);
+  /* Responder 200 inmediato a MP para que no reintente, PERO solo después de
+     verificar firma. Si la firma falla, log y descartar. */
   try {
     let body = req.body;
     if (Buffer.isBuffer(body)) body = JSON.parse(body.toString());
@@ -2075,6 +2117,14 @@ app.post('/api/webhook/mp', async (req, res) => {
     const paymentId = body?.data?.id || req.query?.['data.id'] || req.query?.id;
     const orderId = req.query?.orden_id;
     console.log('[WEBHOOK]', type, paymentId);
+
+    /* Verificar firma ANTES de procesar — si es inválida, devolver 401 */
+    if (!verifyMpWebhookSignature(req, paymentId)) {
+      console.error('[WEBHOOK] Firma inválida — request descartado');
+      return res.status(401).json({ ok: false, error: 'Firma inválida' });
+    }
+
+    res.sendStatus(200);
     if (type !== 'payment' || !paymentId) return;
 
     const seller = orderId ? await getMercadoPagoSellerForOrder(orderId) : null;
@@ -2082,12 +2132,14 @@ app.post('/api/webhook/mp', async (req, res) => {
       accessToken: seller?.mp_access_token,
     });
     console.log('[WEBHOOK] pago:', pago.status, pago.external_reference);
- 
+
     if (pago.status === 'approved' && pago.external_reference) {
       await procesarPago(pago.external_reference, pago);
     }
   } catch (err) {
     console.error('[WEBHOOK] ERROR:', err.message);
+    /* Si hay error en el handler post-firma, igual responder 200 si no se respondió ya */
+    if (!res.headersSent) res.sendStatus(200);
   }
 });
  
