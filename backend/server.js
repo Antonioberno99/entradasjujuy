@@ -1266,6 +1266,30 @@ function normalizarTipoEntrada(t, esGratis){
   };
 }
 
+/* Validación del flyer: debe ser data URL de imagen y <= 1.5MB.
+   Si es válido devuelve la string; si no, devuelve '' (no se guarda flyer)
+   y se loguea el motivo para debugging. */
+function validarFlyer(flyerData) {
+  const str = String(flyerData || '').trim();
+  if (!str) return '';
+  /* Aceptar URLs http(s) directas (raras pero válidas) */
+  if (/^https?:\/\//i.test(str)) {
+    return str.length <= 2048 ? str : '';
+  }
+  /* Validar prefijo data URL de imagen */
+  const m = str.match(/^data:image\/(png|jpe?g|webp|gif);base64,/i);
+  if (!m) {
+    console.warn('[FLYER] Rechazado: no es data:image válido');
+    return '';
+  }
+  /* Validar tamaño: ~1.5MB de base64 = ~2MB real (limite seguro) */
+  if (str.length > 2_100_000) {
+    console.warn(`[FLYER] Rechazado: tamaño ${str.length} excede 2.1MB`);
+    return '';
+  }
+  return str;
+}
+
 async function createOrSaveEvent(req, res, activo) {
   const body = req.body || {};
   const nombre = String(body.name || body.nombre || '').trim();
@@ -1326,7 +1350,7 @@ async function createOrSaveEvent(req, res, activo) {
         body.place || body.lugar || '',
         body.city || body.ciudad || 'Jujuy',
         capacidad,
-        body.flyer || body.imagen_url || '',
+        validarFlyer(body.flyer || body.imagen_url || ''),
         activo,
       ]);
 
@@ -1472,7 +1496,7 @@ app.put('/api/productos/eventos/:id', requireAuth, async (req, res) => {
       body.place || body.lugar || '',
       body.city || body.ciudad || 'Jujuy',
       capacidad,
-      body.flyer || body.imagen_url || '',
+      validarFlyer(body.flyer || body.imagen_url || ''),
       activo,
       eventId,
     ]);
@@ -2209,19 +2233,41 @@ async function procesarPago(ordenId, pago) {
 
     for (let i = 0; i < totalQrs; i++) {
       const entradaId = uuid();
-      const token = jwt.sign({ type: 'ticket', entrada_id: entradaId, orden_id: ordenId, evento_id: item.evento_id }, jwtSecret);
+      /* QR token: JWT firmado con expiración acotada (24h después del evento).
+         La validez real depende de la DB — el JWT es solo prueba criptográfica
+         de que el token no fue manipulado. */
+      const expiraEnSegundos = (() => {
+        try {
+          const fechaEv = new Date(item.fecha);
+          fechaEv.setDate(fechaEv.getDate() + 1); /* fecha del evento + 1 día */
+          const segs = Math.floor((fechaEv.getTime() - Date.now()) / 1000);
+          return segs > 0 ? segs : 60 * 60 * 24 * 90; /* fallback: 90 días */
+        } catch { return 60 * 60 * 24 * 90; }
+      })();
+      const token = jwt.sign(
+        { type: 'ticket', entrada_id: entradaId, orden_id: ordenId, evento_id: item.evento_id },
+        jwtSecret,
+        { expiresIn: expiraEnSegundos }
+      );
+
+      /* DECREMENTO ATÓMICO de stock — solo permite descontar si disponibles > 0.
+         Si retorna 0 filas significa que se overoldeó (race condition entre dos
+         compras simultáneas). Logueamos el incidente para refund manual pero
+         igual generamos el QR porque el usuario ya pagó. */
+      const { rows: stockRows } = await db.query(
+        'UPDATE tipos_entrada SET disponibles = disponibles - 1 WHERE id=$1 AND disponibles > 0 RETURNING disponibles',
+        [item.tipo_entrada_id]
+      );
+      if (!stockRows.length) {
+        console.error(`[OVERSELL] tipo_entrada=${item.tipo_entrada_id} orden=${ordenId} — stock agotado pero ya cobrado. Refund manual requerido.`);
+      } else if (stockRows[0].disponibles === 0) {
+        console.warn(`[STOCK] Tipo entrada ${item.tipo_entrada_id} llegó a 0 (orden ${ordenId})`);
+      }
 
       await db.query(
         'INSERT INTO entradas (id, orden_id, tipo_entrada_id, token_qr, estado, numero) VALUES ($1,$2,$3,$4,\'valida\',$5) ON CONFLICT DO NOTHING',
         [entradaId, ordenId, item.tipo_entrada_id, token, i + 1]
       );
-      const { rows: stockRows } = await db.query(
-        'UPDATE tipos_entrada SET disponibles = GREATEST(disponibles-1,0) WHERE id=$1 RETURNING disponibles',
-        [item.tipo_entrada_id]
-      );
-      if (stockRows[0]?.disponibles === 0) {
-        console.warn(`[STOCK] Tipo entrada ${item.tipo_entrada_id} llegó a 0 (orden ${ordenId})`);
-      }
 
       const qrDataUrl = await makeTicketQr(token);
       entradas.push({
