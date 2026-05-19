@@ -1811,7 +1811,7 @@ app.post('/api/organizador/entradas-regalo', giftLimiter, requireAuth, async (re
   const dni = String(req.body?.dni || '').replace(/\D/g, '').slice(0, 12);
   const cantidad = Math.min(20, Math.max(1, parseInt(req.body?.cantidad || '1', 10) || 1));
   /* Mensaje personalizado del organizador para el invitado (opcional, máx 280 chars) */
-  const mensajeRaw = String(req.body?.mensaje || '').trim().slice(0, 280);
+  const mensajeRaw = String(req.body?.mensaje || '').trim().slice(0, 500);
 
   if (!eventoId) return res.status(400).json({ ok: false, error: 'Selecciona un evento' });
   if (!nombre) return res.status(400).json({ ok: false, error: 'Ingresa el nombre del invitado' });
