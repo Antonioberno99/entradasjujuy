@@ -2564,10 +2564,19 @@ async function enviarEmail(orden, entradas) {
     cid: `qr-${e.id}@entradasjujuy`,
   }));
 
-  /* Descripción del evento (info que escribió el organizador: horarios, qué incluye,
-     restricciones, contacto, etc.). Sale UNA vez al principio, no por cada QR.
-     Sanitizo HTML básico para prevenir inyecciones desde la descripción. */
+  /* Sanitización HTML — DECLARAR ANTES de usar (importante: las helpers
+     safeEntradaEvento/Lugar/Tipo se usan dentro de qrHtml, así que tienen
+     que estar definidas previamente para no caer en temporal dead zone). */
   const escapeHtml = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const mensajeInvitacion = escapeHtml(String(orden.mensaje_invitacion || '').trim());
+  const organizadorNombre = escapeHtml(String(orden.organizador_nombre || '').trim());
+  const safeCompradorNombre = escapeHtml(String(orden.comprador_nombre || '').trim());
+  const safeEntradaEvento = (e) => escapeHtml(String(e.evento || ''));
+  const safeEntradaLugar = (e) => escapeHtml(String(e.lugar || ''));
+  const safeEntradaTipo = (e) => escapeHtml(String(e.tipo || ''));
+
+  /* Descripción del evento (info que escribió el organizador: horarios, qué incluye,
+     restricciones, contacto, etc.). Sale UNA vez al principio, no por cada QR. */
   const descripcionEvento = String((entradas[0] && entradas[0].descripcion_evento) || '').trim();
   const descripcionBox = descripcionEvento
     ? `<div style="background:#fafafa;border:1px solid #eaeaea;border-left:4px solid #C4692B;border-radius:10px;padding:14px 16px;margin:0 0 20px">
@@ -2596,15 +2605,7 @@ async function enviarEmail(orden, entradas) {
     </div>
   `;
   }).join('');
- 
-  /* Escape para prevenir XSS desde nombres/datos que entran al HTML del email */
-  const mensajeInvitacion = escapeHtml(String(orden.mensaje_invitacion || '').trim());
-  const organizadorNombre = escapeHtml(String(orden.organizador_nombre || '').trim());
-  const safeCompradorNombre = escapeHtml(String(orden.comprador_nombre || '').trim());
-  /* También escapamos los datos por entrada que se interpolan en qrHtml */
-  const safeEntradaEvento = (e) => escapeHtml(String(e.evento || ''));
-  const safeEntradaLugar = (e) => escapeHtml(String(e.lugar || ''));
-  const safeEntradaTipo = (e) => escapeHtml(String(e.tipo || ''));
+
   const mensajeBox = esCortesia && mensajeInvitacion
     ? `<div style="background:linear-gradient(135deg,#fff5e6,#fff);border:1px solid #ffd49a;border-left:4px solid #C4692B;border-radius:10px;padding:16px;margin:0 0 20px">
          <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#a05a10;margin-bottom:8px;font-weight:700">Mensaje${organizadorNombre ? ' de ' + organizadorNombre : ' del organizador'}</div>
