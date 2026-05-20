@@ -2620,15 +2620,10 @@ async function enviarEmail(orden, entradas) {
   `;
   }).join('');
 
-  /* En invitaciones de cortesía no figura el organizador. El protagonista es
-     el evento — el destinatario sabe a qué lo invitaron, no necesita saber quién. */
-  const mensajeBox = esCortesia && mensajeInvitacion
-    ? `<div style="background:linear-gradient(135deg,#fff5e6,#fff);border:1px solid #ffd49a;border-left:4px solid #C4692B;border-radius:10px;padding:16px;margin:0 0 20px">
-         <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#a05a10;margin-bottom:8px;font-weight:700">Mensaje de invitación</div>
-         <div style="font-size:14px;line-height:1.55;color:#3d342a;font-style:italic">"${mensajeInvitacion}"</div>
-       </div>`
-    : '';
-
+  /* Nota: el mensaje personalizado se eliminó del email para mantenerlo
+     profesional. Si el organizador escribió algo en el campo 'mensaje', se
+     guarda en la orden pero NO se renderiza acá. El email queda limpio:
+     solo evento + descripción + QRs. */
   const saludoCortesia = 'te invitaron al siguiente evento como cortesía.';
   const eventoNombre = entradas[0]?.evento || 'Evento';
   const safeEventoSubject = String(eventoNombre).replace(/[\r\n]/g, ' ').slice(0, 80);
@@ -2641,7 +2636,7 @@ async function enviarEmail(orden, entradas) {
       ? `🎟 ${safeEventoSubject} — QR de cortesía`
       : `Tus entradas — ${safeEventoSubject}`,
     text: esCortesia
-      ? `Hola ${orden.comprador_nombre}. ${saludoCortesia}\n\nEvento: ${eventoNombre}${mensajeInvitacion ? `\n\nMensaje de invitación: "${mensajeInvitacion}"\n` : ''}${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar. También podés recuperarlos desde tu cuenta en ${FRONTEND_URL}.`
+      ? `Hola ${orden.comprador_nombre}. ${saludoCortesia}\n\nEvento: ${eventoNombre}${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar. También podés recuperarlos desde tu cuenta en ${FRONTEND_URL}.`
       : `Hola ${orden.comprador_nombre}. Tu compra fue confirmada.${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar al evento. También podés recuperar tus entradas desde tu cuenta en ${FRONTEND_URL}.`,
     html: `<div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif">
       <div style="background:#0a0704;padding:22px;text-align:center;border-radius:10px 10px 0 0">
@@ -2650,7 +2645,6 @@ async function enviarEmail(orden, entradas) {
       </div>
       <div style="padding:24px;background:#fff;border-left:1px solid #eadfd3;border-right:1px solid #eadfd3">
         <p style="margin:0 0 14px;font-size:15px;color:#1f1a14;line-height:1.5">Hola <strong>${safeCompradorNombre}</strong>, ${esCortesia ? saludoCortesia : 'tu compra fue confirmada.'}</p>
-        ${mensajeBox}
         ${descripcionBox}
         ${qrHtml}
       </div>
