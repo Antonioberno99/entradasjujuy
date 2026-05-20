@@ -4605,18 +4605,21 @@ function actualizarResumenTipos(){
 }
 
 /* ============= MISMA LOGICA PARA EL MODAL DE EDICION ============= */
-function renderTipoEntradaEditRow(data, canDelete){
+function renderTipoEntradaEditRow(data){
   data = data || {};
-  var idx = document.querySelectorAll('#edit-tipos-container .tipo-entrada-row').length;
   var row = document.createElement('div');
   row.className = 'tipo-entrada-row';
   row.style.cssText = 'border:1px solid var(--b1);border-radius:12px;padding:14px;margin-bottom:10px;background:rgba(255,255,255,.02)';
-  /* data-tiene-ventas marca tipos que no se pueden borrar porque ya tienen ordenes */
   if(data.id) row.setAttribute('data-tipo-id', data.id);
   row.innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
-      '<div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--t)">Tipo #'+(idx+1)+'</div>'+
-      (canDelete ? '<button type="button" onclick="this.closest(\'.tipo-entrada-row\').remove()" style="background:none;border:none;color:#C44040;font-size:11px;cursor:pointer;font-family:Outfit,sans-serif;padding:4px 8px">Quitar</button>' : '')+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px">'+
+      '<div class="tipo-num" style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--t)">Tipo</div>'+
+      /* Botones para reordenar: ↑ ↓ + Quitar */
+      '<div style="display:flex;align-items:center;gap:4px">'+
+        '<button type="button" onclick="moverTipoEdit(this,-1)" title="Subir" aria-label="Subir" style="background:rgba(255,255,255,.04);border:1px solid var(--b1);color:var(--t1);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;line-height:1">↑</button>'+
+        '<button type="button" onclick="moverTipoEdit(this,1)" title="Bajar" aria-label="Bajar" style="background:rgba(255,255,255,.04);border:1px solid var(--b1);color:var(--t1);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;line-height:1">↓</button>'+
+        '<button type="button" onclick="quitarTipoEdit(this)" style="background:none;border:none;color:#C44040;font-size:11px;cursor:pointer;font-family:Outfit,sans-serif;padding:4px 8px;margin-left:4px">Quitar</button>'+
+      '</div>'+
     '</div>'+
     '<div class="fg" style="margin-bottom:8px"><label class="fl">Nombre</label><input class="fi" data-field="nombre" type="text" placeholder="General, VIP..." value="'+escapeHtml(data.nombre || '')+'"></div>'+
     '<div class="fg-row" style="margin-bottom:8px">'+
@@ -4630,6 +4633,44 @@ function renderTipoEntradaEditRow(data, canDelete){
       '</div>'+
     '</details>';
   document.getElementById('edit-tipos-container').appendChild(row);
+  renumerarTiposEdit();
+}
+
+/* Mover un tipo arriba (-1) o abajo (+1) en la lista del modal de edición */
+function moverTipoEdit(btn, dir){
+  var row = btn.closest('.tipo-entrada-row');
+  if(!row) return;
+  if(dir < 0 && row.previousElementSibling && row.previousElementSibling.classList.contains('tipo-entrada-row')){
+    row.parentNode.insertBefore(row, row.previousElementSibling);
+  } else if(dir > 0 && row.nextElementSibling && row.nextElementSibling.classList.contains('tipo-entrada-row')){
+    row.parentNode.insertBefore(row.nextElementSibling, row);
+  }
+  renumerarTiposEdit();
+}
+
+function renumerarTiposEdit(){
+  var rows = document.querySelectorAll('#edit-tipos-container .tipo-entrada-row');
+  rows.forEach(function(row, i){
+    var lbl = row.querySelector('.tipo-num');
+    if(lbl) lbl.textContent = 'Tipo #' + (i + 1);
+  });
+}
+
+function quitarTipoEdit(btn){
+  var rows = document.querySelectorAll('#edit-tipos-container .tipo-entrada-row');
+  if(rows.length <= 1){
+    alert('No podés borrar el único tipo de entrada. Editalo o agregá otro antes de borrar este.');
+    return;
+  }
+  var row = btn.closest('.tipo-entrada-row');
+  var tipoId = row && row.getAttribute('data-tipo-id');
+  /* Si el tipo ya tenía ventas en el backend, no se puede borrar — el backend
+     lo ignora silenciosamente. Avisamos por si acaso. */
+  if(tipoId && !confirm('Si este tipo de entrada ya tiene ventas, no se va a poder borrar. ¿Continuar?')){
+    return;
+  }
+  row.remove();
+  renumerarTiposEdit();
 }
 
 function agregarTipoEntradaEdit(){
@@ -4637,7 +4678,7 @@ function agregarTipoEntradaEdit(){
   if(!container) return;
   var existentes = container.querySelectorAll('.tipo-entrada-row').length;
   if(existentes >= 5){ alert('Máximo 5 tipos de entrada por evento.'); return; }
-  renderTipoEntradaEditRow({}, true);
+  renderTipoEntradaEditRow({});
 }
 
 function leerTiposEntradaEdit(){
@@ -4645,6 +4686,7 @@ function leerTiposEntradaEdit(){
   var result = [];
   rows.forEach(function(row){
     var get = function(name){ var el = row.querySelector('[data-field="'+name+'"]'); return el ? String(el.value || '').trim() : ''; };
+    var id = row.getAttribute('data-tipo-id') || '';
     var nombre = get('nombre') || 'General';
     var precio = parseInt(get('precio')||'0', 10) || 0;
     var capacidad = parseInt(get('capacidad')||'100', 10) || 100;
@@ -4652,6 +4694,7 @@ function leerTiposEntradaEdit(){
     var promoPaga = parseInt(get('promo_paga')||'0', 10) || 0;
     var promoRecibe = parseInt(get('promo_recibe')||'0', 10) || 0;
     result.push({
+      id: id || undefined, /* si existe, el backend lo actualiza por ID; si no, crea nuevo */
       nombre: nombre,
       precio_base: precio,
       capacidad: capacidad,
@@ -5003,9 +5046,9 @@ function editarEvento(eventId){
   if(cont){
     cont.innerHTML = '';
     if(tipos.length === 0){
-      renderTipoEntradaEditRow({ nombre: 'General' }, false);
+      renderTipoEntradaEditRow({ nombre: 'General' });
     } else {
-      tipos.forEach(function(t, idx){
+      tipos.forEach(function(t){
         renderTipoEntradaEditRow({
           id: t.id,
           nombre: t.nombre,
@@ -5014,7 +5057,7 @@ function editarEvento(eventId){
           hora_limite: t.hora_limite,
           promo_paga: t.promo_paga,
           promo_recibe: t.promo_recibe,
-        }, idx > 0); /* el primero no se puede borrar */
+        });
       });
     }
   }

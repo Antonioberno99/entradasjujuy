@@ -1257,7 +1257,7 @@ async function getEventWithTickets(eventId) {
         'id', t.id, 'nombre', t.nombre,
         'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
         'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
-      ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
+      ) ORDER BY t.display_order ASC, t.precio_base ASC) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
     FROM eventos e
     LEFT JOIN tipos_entrada t ON t.evento_id = e.id
     WHERE e.id = $1
@@ -1293,6 +1293,11 @@ async function getMercadoPagoSellerForOrder(orderId) {
 
 /* Normaliza una entrada del array de tipos_entrada que envia el frontend */
 function normalizarTipoEntrada(t, esGratis){
+  /* Preservar el ID si viene (en flujo de edición). Si no, queda null y el
+     backend crea un nuevo registro. Validamos que sea un UUID válido para
+     evitar inyecciones. */
+  const idRaw = String(t?.id || '').trim();
+  const id = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idRaw) ? idRaw : null;
   const nombre = String(t?.nombre || t?.name || 'General').trim() || 'General';
   const precio = esGratis ? 0 : parseMoney(t?.precio_base ?? t?.precio ?? t?.price ?? 0);
   const cap = Math.max(1, parseInt(t?.capacidad ?? t?.capacity ?? 100, 10) || 100);
@@ -1304,6 +1309,7 @@ function normalizarTipoEntrada(t, esGratis){
   const promoValida = promoPaga > 0 && promoRecibe > promoPaga;
   const desc = String(t?.descripcion || t?.descripcion_extra || '').trim();
   return {
+    id,
     nombre, precio, capacidad: cap,
     hora_limite: horaLimite || null,
     promo_paga: promoValida ? promoPaga : 0,
@@ -1547,48 +1553,56 @@ app.put('/api/productos/eventos/:id', requireAuth, async (req, res) => {
       eventId,
     ]);
 
-    /* Actualizar tipos de entrada: estrategia simple - obtener existentes,
-       actualizar los que coinciden por nombre, crear nuevos, eliminar los que ya no estan */
+    /* Actualizar tipos de entrada matcheando por ID (no por nombre).
+       Si tn.id existe → UPDATE de ese tipo (permite renombrar libremente).
+       Si tn.id no existe → INSERT nuevo.
+       Los IDs que estaban antes y ya no aparecen en el payload → DELETE
+       (solo si no tienen ventas asociadas).
+       El display_order se guarda según la posición en el array que mandó el
+       frontend, así el organizador controla el orden visualmente. */
     const { rows: tiposActuales } = await client.query(
       'SELECT id, nombre, capacidad, disponibles FROM tipos_entrada WHERE evento_id = $1',
       [eventId]
     );
-    const actualesPorNombre = new Map(tiposActuales.map(t => [String(t.nombre).toLowerCase().trim(), t]));
-    const nombresNuevos = new Set();
+    const actualesPorId = new Map(tiposActuales.map(t => [String(t.id), t]));
+    const idsRecibidos = new Set();
 
-    for (const tn of tiposNuevos) {
-      const key = tn.nombre.toLowerCase().trim();
-      nombresNuevos.add(key);
-      const existente = actualesPorNombre.get(key);
+    for (let i = 0; i < tiposNuevos.length; i++) {
+      const tn = tiposNuevos[i];
+      const displayOrder = i; /* posición en el array = orden de visualización */
+      const tnId = tn.id ? String(tn.id) : '';
+      const existente = tnId ? actualesPorId.get(tnId) : null;
       if (existente) {
+        idsRecibidos.add(tnId);
         const viejaCapacidad = Number(existente.capacidad || 0);
         const delta = tn.capacidad - viejaCapacidad;
         await client.query(`
           UPDATE tipos_entrada SET
-            precio_base = $1,
+            nombre = $1,
+            precio_base = $2,
             fee_organizador = 0,
-            capacidad = $2,
-            disponibles = GREATEST(0, disponibles + $3),
-            hora_limite = $4,
-            promo_paga = $5,
-            promo_recibe = $6,
-            descripcion_extra = $7
-          WHERE id = $8
-        `, [tn.precio, tn.capacidad, delta, tn.hora_limite, tn.promo_paga, tn.promo_recibe, tn.descripcion_extra, existente.id]);
+            capacidad = $3,
+            disponibles = GREATEST(0, disponibles + $4),
+            hora_limite = $5,
+            promo_paga = $6,
+            promo_recibe = $7,
+            descripcion_extra = $8,
+            display_order = $9
+          WHERE id = $10
+        `, [tn.nombre, tn.precio, tn.capacidad, delta, tn.hora_limite, tn.promo_paga, tn.promo_recibe, tn.descripcion_extra, displayOrder, existente.id]);
       } else {
         await client.query(`
           INSERT INTO tipos_entrada (
             evento_id, nombre, descripcion, precio_base, fee_organizador,
-            capacidad, disponibles, hora_limite, promo_paga, promo_recibe, descripcion_extra
-          ) VALUES ($1,$2,'',$3,0,$4,$4,$5,$6,$7,$8)
-        `, [eventId, tn.nombre, tn.precio, tn.capacidad, tn.hora_limite, tn.promo_paga, tn.promo_recibe, tn.descripcion_extra]);
+            capacidad, disponibles, hora_limite, promo_paga, promo_recibe, descripcion_extra, display_order
+          ) VALUES ($1,$2,'',$3,0,$4,$4,$5,$6,$7,$8,$9)
+        `, [eventId, tn.nombre, tn.precio, tn.capacidad, tn.hora_limite, tn.promo_paga, tn.promo_recibe, tn.descripcion_extra, displayOrder]);
       }
     }
 
-    /* Eliminar tipos que ya no existen, SOLO si no tienen ventas asociadas */
+    /* Eliminar tipos que ya no aparecen en el payload, solo si no tienen ventas */
     for (const t of tiposActuales) {
-      const key = String(t.nombre).toLowerCase().trim();
-      if (nombresNuevos.has(key)) continue;
+      if (idsRecibidos.has(String(t.id))) continue;
       const { rows: usos } = await client.query(
         'SELECT 1 FROM orden_items WHERE tipo_entrada_id = $1 LIMIT 1',
         [t.id]
@@ -1656,7 +1670,7 @@ app.get('/api/productos/mios', requireAuth, async (req, res) => {
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
           'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
-        ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
+        ) ORDER BY t.display_order ASC, t.precio_base ASC) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
       WHERE e.organizador_id = $1
@@ -1954,7 +1968,7 @@ app.get('/api/eventos', async (req, res) => {
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
           'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
-        ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
+        ) ORDER BY t.display_order ASC, t.precio_base ASC) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
       WHERE e.activo = true AND e.fecha >= CURRENT_DATE
@@ -1976,7 +1990,7 @@ app.get('/api/eventos/:id', async (req, res) => {
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
           'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
-        ) ORDER BY t.precio_base) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
+        ) ORDER BY t.display_order ASC, t.precio_base ASC) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
       WHERE e.id = $1 GROUP BY e.id
@@ -2656,6 +2670,7 @@ async function autoMigrate(){
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS promo_paga INT DEFAULT 0`);
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS promo_recibe INT DEFAULT 0`);
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS descripcion_extra TEXT`);
+    await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0`);
     console.log('[MIGRATE] Schema actualizado');
   } catch(err){
     console.error('[MIGRATE] Error:', err.message);
