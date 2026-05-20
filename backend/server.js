@@ -2582,8 +2582,6 @@ async function enviarEmail(orden, entradas) {
      safeEntradaEvento/Lugar/Tipo se usan dentro de qrHtml, así que tienen
      que estar definidas previamente para no caer en temporal dead zone). */
   const escapeHtml = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const mensajeInvitacion = escapeHtml(String(orden.mensaje_invitacion || '').trim());
-  const organizadorNombre = escapeHtml(String(orden.organizador_nombre || '').trim());
   const safeCompradorNombre = escapeHtml(String(orden.comprador_nombre || '').trim());
   const safeEntradaEvento = (e) => escapeHtml(String(e.evento || ''));
   const safeEntradaLugar = (e) => escapeHtml(String(e.lugar || ''));
