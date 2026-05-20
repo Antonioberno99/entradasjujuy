@@ -2606,28 +2606,33 @@ async function enviarEmail(orden, entradas) {
   `;
   }).join('');
 
+  /* En invitaciones de cortesía no figura el organizador. El protagonista es
+     el evento — el destinatario sabe a qué lo invitaron, no necesita saber quién. */
   const mensajeBox = esCortesia && mensajeInvitacion
     ? `<div style="background:linear-gradient(135deg,#fff5e6,#fff);border:1px solid #ffd49a;border-left:4px solid #C4692B;border-radius:10px;padding:16px;margin:0 0 20px">
-         <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#a05a10;margin-bottom:8px;font-weight:700">Mensaje${organizadorNombre ? ' de ' + organizadorNombre : ' del organizador'}</div>
+         <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#a05a10;margin-bottom:8px;font-weight:700">Mensaje de invitación</div>
          <div style="font-size:14px;line-height:1.55;color:#3d342a;font-style:italic">"${mensajeInvitacion}"</div>
        </div>`
     : '';
 
-  const saludoCortesia = organizadorNombre
-    ? `te enviaron entradas de cortesía${organizadorNombre ? ' desde ' + organizadorNombre : ''}.`
-    : 'te enviaron entradas de cortesía.';
+  const saludoCortesia = 'te invitaron al siguiente evento como cortesía.';
+  const eventoNombre = entradas[0]?.evento || 'Evento';
+  const safeEventoSubject = String(eventoNombre).replace(/[\r\n]/g, ' ').slice(0, 80);
 
   await sendMailResilient({
     from: MAIL_FROM,
     to: orden.comprador_email,
-    subject: `${esCortesia ? '🎟 Te invitaron a' : 'Tus entradas'} - ${entradas[0]?.evento}`,
+    /* Subject prioriza el nombre del evento. Sin mencionar al organizador. */
+    subject: esCortesia
+      ? `🎟 ${safeEventoSubject} — QR de cortesía`
+      : `Tus entradas — ${safeEventoSubject}`,
     text: esCortesia
-      ? `Hola ${orden.comprador_nombre}. ${saludoCortesia}${mensajeInvitacion ? `\n\nMensaje${organizadorNombre ? ' de '+organizadorNombre : ''}: "${mensajeInvitacion}"\n` : ''}${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar al evento. También podés recuperarlas desde tu cuenta en ${FRONTEND_URL}.`
+      ? `Hola ${orden.comprador_nombre}. ${saludoCortesia}\n\nEvento: ${eventoNombre}${mensajeInvitacion ? `\n\nMensaje de invitación: "${mensajeInvitacion}"\n` : ''}${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar. También podés recuperarlos desde tu cuenta en ${FRONTEND_URL}.`
       : `Hola ${orden.comprador_nombre}. Tu compra fue confirmada.${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar al evento. También podés recuperar tus entradas desde tu cuenta en ${FRONTEND_URL}.`,
     html: `<div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif">
       <div style="background:#0a0704;padding:22px;text-align:center;border-radius:10px 10px 0 0">
         <h1 style="color:#C4692B;margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px">Entradas<span style="color:#3A6FA0">Jujuy</span></h1>
-        ${esCortesia ? '<div style="color:#9A8670;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:6px">🎟 Invitación de cortesía</div>' : ''}
+        ${esCortesia ? '<div style="color:#9A8670;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:6px">🎟 QR de cortesía</div>' : ''}
       </div>
       <div style="padding:24px;background:#fff;border-left:1px solid #eadfd3;border-right:1px solid #eadfd3">
         <p style="margin:0 0 14px;font-size:15px;color:#1f1a14;line-height:1.5">Hola <strong>${safeCompradorNombre}</strong>, ${esCortesia ? saludoCortesia : 'tu compra fue confirmada.'}</p>
