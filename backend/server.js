@@ -2568,9 +2568,9 @@ app.post('/api/validar-qr', requireAuth, async (req, res) => {
   }
 });
  
-// ── EMAIL
+// ── EMAIL — mismo template para compras y cortesías. El receptor no sabe
+// si pagó o lo invitaron: ve "Tus entradas" sin distinción.
 async function enviarEmail(orden, entradas) {
-  const esCortesia = orden.estado === 'cortesia';
   const attachments = entradas.map(e => ({
     filename: `entrada-${e.numero}-${e.id}.png`,
     content: Buffer.from(String(e.qrDataUrl || '').split(',')[1] || '', 'base64'),
@@ -2618,31 +2618,24 @@ async function enviarEmail(orden, entradas) {
   `;
   }).join('');
 
-  /* Nota: el mensaje personalizado se eliminó del email para mantenerlo
-     profesional. Si el organizador escribió algo en el campo 'mensaje', se
-     guarda en la orden pero NO se renderiza acá. El email queda limpio:
-     solo evento + descripción + QRs. */
-  const saludoCortesia = 'te invitaron al siguiente evento como cortesía.';
+  /* Email unificado: tanto compras como cortesías ven exactamente lo mismo.
+     El receptor de una cortesía NO se entera de que es cortesía — el organizador
+     puede regalar entradas y para el invitado se ven como entradas normales. */
   const eventoNombre = entradas[0]?.evento || 'Evento';
   const safeEventoSubject = String(eventoNombre).replace(/[\r\n]/g, ' ').slice(0, 80);
+  const saludoUnificado = 'tus entradas para el evento están listas.';
 
   await sendMailResilient({
     from: MAIL_FROM,
     to: orden.comprador_email,
-    /* Subject prioriza el nombre del evento. Sin mencionar al organizador. */
-    subject: esCortesia
-      ? `🎟 ${safeEventoSubject} — QR de cortesía`
-      : `Tus entradas — ${safeEventoSubject}`,
-    text: esCortesia
-      ? `Hola ${orden.comprador_nombre}. ${saludoCortesia}\n\nEvento: ${eventoNombre}${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar. También podés recuperarlos desde tu cuenta en ${FRONTEND_URL}.`
-      : `Hola ${orden.comprador_nombre}. Tu compra fue confirmada.${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar al evento. También podés recuperar tus entradas desde tu cuenta en ${FRONTEND_URL}.`,
+    subject: `Tus entradas — ${safeEventoSubject}`,
+    text: `Hola ${orden.comprador_nombre}, ${saludoUnificado}${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar al evento. También podés recuperar tus entradas desde tu cuenta en ${FRONTEND_URL}.`,
     html: `<div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif">
       <div style="background:#0a0704;padding:22px;text-align:center;border-radius:10px 10px 0 0">
         <h1 style="color:#C4692B;margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px">Entradas<span style="color:#3A6FA0">Jujuy</span></h1>
-        ${esCortesia ? '<div style="color:#9A8670;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:6px">🎟 QR de cortesía</div>' : ''}
       </div>
       <div style="padding:24px;background:#fff;border-left:1px solid #eadfd3;border-right:1px solid #eadfd3">
-        <p style="margin:0 0 14px;font-size:15px;color:#1f1a14;line-height:1.5">Hola <strong>${safeCompradorNombre}</strong>, ${esCortesia ? saludoCortesia : 'tu compra fue confirmada.'}</p>
+        <p style="margin:0 0 14px;font-size:15px;color:#1f1a14;line-height:1.5">Hola <strong>${safeCompradorNombre}</strong>, ${saludoUnificado}</p>
         ${descripcionBox}
         ${qrHtml}
       </div>
