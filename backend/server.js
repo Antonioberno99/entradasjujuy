@@ -2571,11 +2571,26 @@ app.post('/api/validar-qr', requireAuth, async (req, res) => {
 // ── EMAIL — mismo template para compras y cortesías. El receptor no sabe
 // si pagó o lo invitaron: ve "Tus entradas" sin distinción.
 async function enviarEmail(orden, entradas) {
-  const attachments = entradas.map(e => ({
+  /* Log cantidad de QRs para debug si el organizador reporta que faltan */
+  console.log(`[EMAIL] Preparando ${entradas.length} QR(s) para ${orden.comprador_email}`);
+  /* Filtrar entradas sin qrDataUrl (defensa contra fallas de generación) y
+     normalizar números/totales para que coincidan con la cantidad real
+     que llega al recipient. */
+  const entradasValidas = entradas.filter(e => e && e.qrDataUrl && String(e.qrDataUrl).startsWith('data:'));
+  if (entradasValidas.length !== entradas.length) {
+    console.warn(`[EMAIL] ${entradas.length - entradasValidas.length} entrada(s) sin QR válido — fueron filtradas`);
+  }
+  /* Re-numerar para que se vea "1 de N", "2 de N"... en orden secuencial */
+  entradasValidas.forEach((e, i) => { e.numero = i + 1; e.total_tipo = entradasValidas.length; });
+
+  const attachments = entradasValidas.map(e => ({
     filename: `entrada-${e.numero}-${e.id}.png`,
-    content: Buffer.from(String(e.qrDataUrl || '').split(',')[1] || '', 'base64'),
+    content: Buffer.from(String(e.qrDataUrl).split(',')[1] || '', 'base64'),
     contentType: 'image/png',
     cid: `qr-${e.id}@entradasjujuy`,
+    /* disposition inline explícito — algunos clientes (Outlook) lo requieren
+       para renderizar múltiples imágenes embebidas en el mismo email */
+    contentDisposition: 'inline',
   }));
 
   /* Sanitización HTML — DECLARAR ANTES de usar (importante: las helpers
@@ -2589,25 +2604,38 @@ async function enviarEmail(orden, entradas) {
 
   /* Descripción del evento (info que escribió el organizador: horarios, qué incluye,
      restricciones, contacto, etc.). Sale UNA vez al principio, no por cada QR. */
-  const descripcionEvento = String((entradas[0] && entradas[0].descripcion_evento) || '').trim();
+  const descripcionEvento = String((entradasValidas[0] && entradasValidas[0].descripcion_evento) || '').trim();
   const descripcionBox = descripcionEvento
     ? `<div style="background:#fafafa;border:1px solid #eaeaea;border-left:4px solid #C4692B;border-radius:10px;padding:14px 16px;margin:0 0 20px">
          <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#8b7a66;margin-bottom:8px;font-weight:700">Información del evento</div>
          <div style="font-size:13px;line-height:1.6;color:#3d342a;white-space:pre-wrap">${escapeHtml(descripcionEvento)}</div>
        </div>`
     : '';
-  const qrHtml = entradas.map(e => {
+
+  /* Banner que aparece SOLO si hay más de 1 entrada, indicando claramente al
+     receptor cuántas entradas viene a buscar. Evita que pensen que hay 1 sola. */
+  const totalBanner = entradasValidas.length > 1
+    ? `<div style="background:linear-gradient(135deg,#0a0704,#1a0e06);color:#EAE0D0;border-radius:10px;padding:14px 16px;margin:0 0 20px;text-align:center">
+         <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#C4692B;margin-bottom:4px;font-weight:700">Tus entradas</div>
+         <div style="font-size:20px;font-weight:900;color:#fff">${entradasValidas.length} QR para ingresar</div>
+         <div style="font-size:11px;color:#9A8670;margin-top:4px">Encontrá los ${entradasValidas.length} códigos debajo</div>
+       </div>`
+    : '';
+
+  const qrHtml = entradasValidas.map(e => {
     const horaLim = e.hora_limite ? String(e.hora_limite).slice(0, 5) : '';
     const fechaFmt = e.fecha ? new Date(e.fecha).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : '';
     return `
-    <div style="border:1px solid #eeeeee;border-radius:20px;padding:16px;margin-bottom:16px;background:#ffffff;box-shadow:0 8px 22px rgba(10,7,4,.06)">
-      <div style="display:inline-block;background:#0a0704;color:#C4692B;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;margin-bottom:12px">EntradasJujuy</div>
+    <div style="border:2px solid #C4692B;border-radius:20px;padding:16px;margin-bottom:18px;background:#ffffff;box-shadow:0 8px 22px rgba(10,7,4,.08)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px">
+        <div style="display:inline-block;background:#0a0704;color:#C4692B;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700">EntradasJujuy</div>
+        <div style="background:#C4692B;color:#fff;font-weight:700;font-size:12px;padding:4px 10px;border-radius:999px;letter-spacing:.3px">QR ${e.numero} de ${e.total_tipo}</div>
+      </div>
       <h3 style="color:#0a0704;margin:0 0 5px;font-size:18px;line-height:1.12">${safeEntradaEvento(e)}</h3>
       <p style="color:#776b5d;font-size:12px;line-height:1.4;margin:0 0 12px">${fechaFmt}${e.hora ? ' · ' + escapeHtml(String(e.hora)) + ' hs' : ''}${e.lugar ? ' · ' + safeEntradaLugar(e) : ''}</p>
       <div style="background:#fafafa;border:1px solid #eeeeee;border-radius:12px;padding:10px 12px;margin-bottom:14px">
         <div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#8b7a66;margin-bottom:3px">Tipo de entrada</div>
         <div style="font-size:14px;font-weight:700;color:#0a0704">${safeEntradaTipo(e)}</div>
-        <div style="font-size:11px;color:#776b5d;margin-top:4px">Entrada ${e.numero} de ${e.total_tipo}</div>
       </div>
       <div style="text-align:center;background:#fff;border:1px solid #f1f1f1;border-radius:18px;padding:8px;width:150px;margin:0 auto">
         <img src="cid:qr-${e.id}@entradasjujuy" style="width:132px;height:132px;display:block;margin:0 auto"/>
@@ -2619,17 +2647,19 @@ async function enviarEmail(orden, entradas) {
   }).join('');
 
   /* Email unificado: tanto compras como cortesías ven exactamente lo mismo.
-     El receptor de una cortesía NO se entera de que es cortesía — el organizador
-     puede regalar entradas y para el invitado se ven como entradas normales. */
-  const eventoNombre = entradas[0]?.evento || 'Evento';
+     El receptor de una cortesía NO se entera de que es cortesía. */
+  const eventoNombre = entradasValidas[0]?.evento || 'Evento';
   const safeEventoSubject = String(eventoNombre).replace(/[\r\n]/g, ' ').slice(0, 80);
-  const saludoUnificado = 'tus entradas para el evento están listas.';
+  const totalQrs = entradasValidas.length;
+  const saludoUnificado = totalQrs > 1
+    ? `te enviamos ${totalQrs} entradas para el evento.`
+    : 'tu entrada para el evento está lista.';
 
   await sendMailResilient({
     from: MAIL_FROM,
     to: orden.comprador_email,
     subject: `Tus entradas — ${safeEventoSubject}`,
-    text: `Hola ${orden.comprador_nombre}, ${saludoUnificado}${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos tus QR para ingresar al evento. También podés recuperar tus entradas desde tu cuenta en ${FRONTEND_URL}.`,
+    text: `Hola ${orden.comprador_nombre}, ${saludoUnificado}${descripcionEvento ? `\n\nInformación del evento:\n${descripcionEvento}\n` : ''}\nAdjuntamos ${totalQrs} QR${totalQrs>1?'s':''} para ingresar al evento. También podés recuperar tus entradas desde tu cuenta en ${FRONTEND_URL}.`,
     html: `<div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif">
       <div style="background:#0a0704;padding:22px;text-align:center;border-radius:10px 10px 0 0">
         <h1 style="color:#C4692B;margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px">Entradas<span style="color:#3A6FA0">Jujuy</span></h1>
@@ -2637,6 +2667,7 @@ async function enviarEmail(orden, entradas) {
       <div style="padding:24px;background:#fff;border-left:1px solid #eadfd3;border-right:1px solid #eadfd3">
         <p style="margin:0 0 14px;font-size:15px;color:#1f1a14;line-height:1.5">Hola <strong>${safeCompradorNombre}</strong>, ${saludoUnificado}</p>
         ${descripcionBox}
+        ${totalBanner}
         ${qrHtml}
       </div>
     </div>`,
