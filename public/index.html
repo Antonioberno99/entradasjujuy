@@ -5495,14 +5495,16 @@ var QR_CREDIT_PRICE_FRONT = 200;
 var _qrCreditsBalance = 0;
 
 function actualizarTotalQrCredits(){
+  /* Calcular total sin forzar valores en el input — el usuario debe poder
+     borrar libremente. La validación min/max se hace al enviar. */
   var input = document.getElementById('qr-credits-cantidad');
   var totalEl = document.getElementById('qr-credits-total');
-  var n = parseInt(input?.value || '0', 10) || 0;
-  if(n < 1) n = 1;
-  if(n > 500) n = 500;
-  if(input && input.value !== String(n)) input.value = String(n);
+  if(!totalEl) return;
+  var raw = input ? input.value : '';
+  var n = parseInt(raw, 10);
+  if(!isFinite(n) || n < 0) n = 0;
   var total = n * QR_CREDIT_PRICE_FRONT;
-  if(totalEl) totalEl.value = '$' + total.toLocaleString('es-AR');
+  totalEl.value = '$' + total.toLocaleString('es-AR');
 }
 
 async function cargarQrCreditsStatus(){
@@ -5545,13 +5547,15 @@ function cerrarComprarCreditosModal(){
 }
 
 function actualizarTotalComprarModal(){
+  /* Calcular total sin forzar valores — el usuario debe poder borrar el campo
+     y escribir lo que quiera. Validación de min/max se hace recién al tocar
+     "Pagar con Mercado Pago" (en confirmarCompraQrCredits). */
   var input = document.getElementById('buy-credits-cantidad');
   var totalEl = document.getElementById('buy-credits-total');
-  if(!input || !totalEl) return;
-  var n = parseInt(input.value || '0', 10) || 0;
-  if(n < 1) n = 1;
-  if(n > 500) n = 500;
-  if(input.value !== String(n)) input.value = String(n);
+  if(!totalEl) return;
+  var raw = input ? input.value : '';
+  var n = parseInt(raw, 10);
+  if(!isFinite(n) || n < 0) n = 0;
   var total = n * QR_CREDIT_PRICE_FRONT;
   totalEl.value = '$' + total.toLocaleString('es-AR');
 }
