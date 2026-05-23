@@ -11,6 +11,8 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
 <link rel="apple-touch-icon" href="/icons/icon.svg">
+<!-- Google Identity Services — para el botón "Continuar con Google" -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0704;color:#EAE0D0;min-height:100vh;min-height:100dvh;line-height:1.5;-webkit-font-smoothing:antialiased}
@@ -109,6 +111,18 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
     <div class="auth-card">
       <div class="auth-title">Iniciá sesión</div>
       <div class="auth-desc">Ingresá con tu cuenta de organizador para validar QRs de tus eventos.</div>
+
+      <!-- Google sign-in: contenedor para el botón nativo de Google -->
+      <div id="google-login-btn" style="min-height:52px;margin-bottom:8px;display:flex;justify-content:center;align-items:center;padding:4px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(255,255,255,.04)">
+        <span style="font-size:12px;color:#7d6c52" id="google-fallback-label">Cargando Google...</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin:14px 0">
+        <div style="flex:1;height:1px;background:rgba(255,255,255,.08)"></div>
+        <span style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#5C4E3C">O con email</span>
+        <div style="flex:1;height:1px;background:rgba(255,255,255,.08)"></div>
+      </div>
+
       <input id="auth-email" class="fi" type="email" placeholder="Email" autocomplete="email">
       <input id="auth-password" class="fi" type="password" placeholder="Contraseña" autocomplete="current-password">
       <button class="btn btn-primary" id="auth-submit" onclick="hacerLogin()">Ingresar</button>
@@ -314,6 +328,97 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
 
   /* ============ AUTH ============ */
 
+  /* Google Identity Services — botón nativo de Google. Reutilizamos el
+     endpoint /api/auth/google del backend con el mismo flujo que la web. */
+  var GOOGLE_CLIENT_ID = '258196394841-1fgpfbm966tvlo87d8ilji09fmnjlejq.apps.googleusercontent.com';
+  var _googleReady = false;
+  var _googleInitAttempts = 0;
+
+  function initGoogleAuth(){
+    if(_googleReady) return;
+    if(!window.google || !google.accounts || !google.accounts.id){
+      _googleInitAttempts++;
+      if(_googleInitAttempts > 40){
+        var fb = document.getElementById('google-fallback-label');
+        if(fb) fb.textContent = 'Google no cargó · usá email/contraseña';
+        return;
+      }
+      setTimeout(initGoogleAuth, 250);
+      return;
+    }
+    try{
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: onGoogleCredential,
+        ux_mode: 'popup',
+      });
+      _googleReady = true;
+      renderGoogleButton();
+    }catch(e){
+      var fb = document.getElementById('google-fallback-label');
+      if(fb) fb.textContent = 'Google no disponible · usá email/contraseña';
+    }
+  }
+
+  function renderGoogleButton(){
+    var box = document.getElementById('google-login-btn');
+    if(!box || !window.google?.accounts?.id) return;
+    /* Limpiar el placeholder antes de renderizar */
+    box.innerHTML = '';
+    box.style.padding = '0';
+    box.style.background = 'transparent';
+    box.style.border = 'none';
+    try{
+      google.accounts.id.renderButton(box, {
+        type: 'standard',
+        theme: 'filled_black',
+        text: 'continue_with',
+        size: 'large',
+        shape: 'rectangular',
+        logo_alignment: 'left',
+        width: Math.min(360, box.clientWidth || 360),
+      });
+    }catch(e){
+      var fb = document.createElement('span');
+      fb.style.cssText = 'font-size:12px;color:#7d6c52';
+      fb.textContent = 'Google no disponible';
+      box.appendChild(fb);
+    }
+  }
+
+  async function onGoogleCredential(response){
+    var msg = document.getElementById('auth-msg');
+    if(!response?.credential){
+      msg.textContent = 'No pudimos validar Google. Probá con email/contraseña.';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hide');
+      return;
+    }
+    msg.classList.add('hide');
+    try{
+      var r = await fetch(API_BASE + '/api/auth/google', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ credential: response.credential, rol: 'organizador' })
+      });
+      var d = await r.json();
+      if(d.needs_verification){
+        msg.textContent = 'Tu cuenta nueva con Google necesita verificación. Confirmá tu email desde la web antes de usar el escáner.';
+        msg.className = 'msg msg-warn';
+        msg.classList.remove('hide');
+        return;
+      }
+      if(!r.ok || !d.ok || !d.token){
+        throw new Error(d.error || 'No pudimos ingresar con Google.');
+      }
+      setSession(d.token, d.usuario);
+      showApp();
+    }catch(e){
+      msg.textContent = e.message || 'Error con Google. Probá email/contraseña.';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hide');
+    }
+  }
+
   async function hacerLogin(){
     var emailEl = document.getElementById('auth-email');
     var passEl = document.getElementById('auth-password');
@@ -362,6 +467,13 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
     cerrarCamara();
     document.getElementById('app-section').classList.add('hide');
     document.getElementById('auth-section').classList.remove('hide');
+    /* Re-renderizar el botón de Google (puede estar destruido por la nav) */
+    if(_googleReady){
+      try{ google.accounts.id.disableAutoSelect(); }catch(e){}
+      renderGoogleButton();
+    } else {
+      initGoogleAuth();
+    }
   }
 
   function showApp(){
@@ -671,6 +783,9 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
     /* Decidir sesión */
     if(getToken() && getUser()){
       showApp();
+    } else {
+      /* Iniciar Google sign-in solo si no hay sesión activa */
+      initGoogleAuth();
     }
   }
 
