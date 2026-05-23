@@ -127,6 +127,12 @@ const MP_ACCESS_TOKEN = mpAccessTokenEnv.value;
 const MP_CLIENT_ID = mpClientIdEnv.value;
 const MP_CLIENT_SECRET = mpClientSecretEnv.value;
 const MP_REDIRECT_URI = String(process.env.MP_REDIRECT_URI || '').trim() || `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/mercadopago/oauth/callback`;
+/* Precio de cada crédito QR que EJ le vende al organizador para
+   ventas off-platform (transferencia, efectivo). El organizador compra
+   créditos por MP y los gasta emitiendo QRs sin cobrar fee del 12,60%. */
+const QR_CREDIT_PRICE = 200;
+const QR_CREDIT_MIN = 1;
+const QR_CREDIT_MAX = 500;
 const MP_MARKETPLACE_FEE_PERCENT = Number(process.env.MP_MARKETPLACE_FEE_PERCENT || '6');
 /* Cobertura de la comision de Mercado Pago (checkout). Se le suma al comprador
    pero NO va al marketplace_fee: queda en la unidad para que MP descuente su
@@ -1955,6 +1961,249 @@ app.post('/api/organizador/entradas-regalo', giftLimiter, requireAuth, async (re
   }
 });
 
+/* ============================================================
+   QR PREPAGOS — El organizador compra créditos a EJ ($200/QR)
+   y los usa para emitir entradas con QR cuando cobró por afuera
+   (transferencia/efectivo). No paga el fee del 12,60%.
+   ============================================================ */
+
+/* GET balance + últimos movimientos del organizador */
+app.get('/api/organizador/qr-credits', requireAuth, async (req, res) => {
+  try {
+    const { rows: usr } = await db.query('SELECT qr_credits FROM usuarios WHERE id = $1', [req.user.id]);
+    const balance = Number(usr[0]?.qr_credits || 0);
+    const { rows: log } = await db.query(
+      `SELECT id, tipo, cantidad, saldo_despues, monto_total, comprador_email, nota, created_at
+       FROM qr_credits_log
+       WHERE usuario_id = $1
+       ORDER BY created_at DESC
+       LIMIT 30`,
+      [req.user.id]
+    );
+    res.json({
+      ok: true,
+      data: {
+        balance,
+        precio_unitario: QR_CREDIT_PRICE,
+        min: QR_CREDIT_MIN,
+        max: QR_CREDIT_MAX,
+        log,
+      },
+    });
+  } catch (err) {
+    console.error('[QR_CREDITS GET]', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/* POST comprar créditos: crea preferencia MP. EJ es el seller. */
+app.post('/api/organizador/qr-credits/comprar', authLimiter, requireAuth, async (req, res) => {
+  const cantidad = parseInt(req.body?.cantidad || '0', 10) || 0;
+  if (cantidad < QR_CREDIT_MIN || cantidad > QR_CREDIT_MAX) {
+    return res.status(400).json({ ok: false, error: `Cantidad inválida. Entre ${QR_CREDIT_MIN} y ${QR_CREDIT_MAX}.` });
+  }
+  if (!MP_ACCESS_TOKEN) {
+    return res.status(503).json({ ok: false, error: 'Mercado Pago no está configurado en el servidor.' });
+  }
+  const total = cantidad * QR_CREDIT_PRICE;
+  const externalRef = `qrcredit:${req.user.id}:${cantidad}:${Date.now()}`;
+  try {
+    const isLocalFrontend = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(FRONTEND_URL);
+    const preferenceBody = {
+      items: [{
+        title: `${cantidad} crédito${cantidad > 1 ? 's' : ''} QR EntradasJujuy`,
+        quantity: 1,
+        unit_price: total,
+        currency_id: 'ARS',
+      }],
+      payer: { email: req.user.email },
+      back_urls: {
+        success: `${FRONTEND_URL}/?qr_credit=ok`,
+        failure: `${FRONTEND_URL}/?qr_credit=error`,
+        pending: `${FRONTEND_URL}/?qr_credit=pendiente`,
+      },
+      external_reference: externalRef,
+      statement_descriptor: 'ENTRADASJUJUY QR',
+    };
+    if (!isLocalFrontend) preferenceBody.auto_return = 'approved';
+    if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(BACKEND_URL)) {
+      preferenceBody.notification_url = `${BACKEND_URL}/api/webhook/mp?qr_credit=1`;
+    }
+    /* IMPORTANTE: usar el access token DE LA PLATAFORMA (MP_ACCESS_TOKEN),
+       no del seller — acá EJ es el que cobra. */
+    const mpResp = await mpRequest('/checkout/preferences', { method: 'POST', body: preferenceBody, accessToken: MP_ACCESS_TOKEN });
+    /* Loguear el intento (estado pendiente — se confirma vía webhook) */
+    await db.query(
+      `INSERT INTO qr_credits_log (usuario_id, tipo, cantidad, monto_total, mp_preference_id, nota)
+       VALUES ($1, 'compra_pendiente', $2, $3, $4, $5)`,
+      [req.user.id, cantidad, total, mpResp.id || null, externalRef]
+    );
+    res.json({
+      ok: true,
+      data: {
+        preference_id: mpResp.id,
+        init_point: mpResp.init_point || mpResp.sandbox_init_point,
+        cantidad,
+        total,
+      },
+    });
+  } catch (err) {
+    console.error('[QR_CREDITS COMPRAR]', err.message);
+    res.status(500).json({ ok: false, error: 'No pudimos crear la preferencia de pago. Intentá nuevamente.' });
+  }
+});
+
+/* POST usar créditos: el organizador emite N QRs para un comprador externo */
+app.post('/api/organizador/qr-credits/usar', giftLimiter, requireAuth, async (req, res) => {
+  const eventoId = String(req.body?.evento_id || '').trim();
+  const tipoEntradaId = String(req.body?.tipo_entrada_id || '').trim();
+  const nombre = String(req.body?.nombre || '').trim();
+  const email = normalizeEmail(req.body?.email || '');
+  const dni = String(req.body?.dni || '').replace(/\D/g, '').slice(0, 12);
+  const cantidad = Math.min(20, Math.max(1, parseInt(req.body?.cantidad || '1', 10) || 1));
+
+  if (!eventoId) return res.status(400).json({ ok: false, error: 'Seleccioná un evento' });
+  if (!nombre) return res.status(400).json({ ok: false, error: 'Ingresá el nombre del comprador' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Email inválido' });
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    /* Lock fila del usuario para decrementar atómico el balance */
+    const { rows: usrRows } = await client.query('SELECT qr_credits FROM usuarios WHERE id = $1 FOR UPDATE', [req.user.id]);
+    const balance = Number(usrRows[0]?.qr_credits || 0);
+    if (balance < cantidad) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ ok: false, error: `Saldo insuficiente. Tenés ${balance} crédito${balance===1?'':'s'} y necesitás ${cantidad}.` });
+    }
+
+    /* Lock tipo + verificar ownership + stock */
+    const { rows: tipos } = await client.query(`
+      SELECT te.*, e.nombre AS evento_nombre, e.fecha, e.hora, e.lugar, e.descripcion AS descripcion_evento, e.organizador_id
+      FROM tipos_entrada te
+      JOIN eventos e ON e.id = te.evento_id
+      WHERE e.id = $1 AND e.organizador_id = $2 AND ($3::text = '' OR te.id::text = $3::text)
+      ORDER BY te.precio_base ASC
+      LIMIT 1
+      FOR UPDATE OF te
+    `, [eventoId, req.user.id, tipoEntradaId]);
+    if (!tipos.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ ok: false, error: 'Evento o tipo de entrada no encontrado' });
+    }
+    const tipo = tipos[0];
+    if (Number(tipo.disponibles) < cantidad) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ ok: false, error: 'No hay stock suficiente en ese tipo de entrada' });
+    }
+
+    /* Crear orden — estado 'pagada' (el cobro ya ocurrió off-platform, los
+       créditos cubren la emisión). Marcamos en mp_payment_id que es qr_credit. */
+    const ordenId = uuid();
+    await client.query(
+      `INSERT INTO ordenes (id, evento_id, comprador_email, comprador_nombre, comprador_dni, estado, mp_payment_id, fecha_pago, created_at)
+       VALUES ($1,$2,$3,$4,$5,'pagada','qr_credit',NOW(),NOW())`,
+      [ordenId, eventoId, email, nombre, dni]
+    );
+    await client.query(
+      `INSERT INTO orden_items (orden_id, tipo_entrada_id, cantidad, precio_unitario, fee_unitario)
+       VALUES ($1,$2,$3,0,0)`,
+      [ordenId, tipo.id, cantidad]
+    );
+
+    /* Calcular expiresIn (igual lógica que compra/cortesía) */
+    const expiraEnSegundos = (() => {
+      try {
+        const fechaEv = new Date(tipo.fecha);
+        fechaEv.setDate(fechaEv.getDate() + 1);
+        const segs = Math.floor((fechaEv.getTime() - Date.now()) / 1000);
+        return segs > 0 ? segs : 60 * 60 * 24 * 90;
+      } catch { return 60 * 60 * 24 * 90; }
+    })();
+
+    const entradas = [];
+    for (let i = 0; i < cantidad; i++) {
+      const entradaId = uuid();
+      const token = jwt.sign(
+        { type: 'ticket', entrada_id: entradaId, orden_id: ordenId, evento_id: eventoId },
+        jwtSecret,
+        { expiresIn: expiraEnSegundos }
+      );
+      await client.query(
+        `INSERT INTO entradas (id, orden_id, tipo_entrada_id, token_qr, estado, numero)
+         VALUES ($1,$2,$3,$4,'valida',$5)`,
+        [entradaId, ordenId, tipo.id, token, i + 1]
+      );
+      entradas.push({
+        id: entradaId, token,
+        tipo: tipo.nombre,
+        evento: tipo.evento_nombre,
+        fecha: tipo.fecha, hora: tipo.hora, lugar: tipo.lugar,
+        descripcion_evento: tipo.descripcion_evento,
+        hora_limite: tipo.hora_limite,
+        numero: i + 1, total_tipo: cantidad,
+      });
+    }
+
+    /* Decrementar stock y saldo de créditos atómico */
+    await client.query('UPDATE tipos_entrada SET disponibles = disponibles - $2 WHERE id = $1', [tipo.id, cantidad]);
+    const { rows: nuevo } = await client.query(
+      'UPDATE usuarios SET qr_credits = qr_credits - $2 WHERE id = $1 RETURNING qr_credits',
+      [req.user.id, cantidad]
+    );
+    const saldoFinal = Number(nuevo[0]?.qr_credits || 0);
+    await client.query(
+      `INSERT INTO qr_credits_log (usuario_id, tipo, cantidad, saldo_despues, evento_id, orden_id, comprador_email, nota)
+       VALUES ($1, 'uso', $2, $3, $4, $5, $6, $7)`,
+      [req.user.id, cantidad, saldoFinal, eventoId, ordenId, email, `Emisión a ${nombre}`]
+    );
+    await client.query('COMMIT');
+
+    /* Generar QRs y enviar email (mismo template que compra/cortesía — el receptor no sabe que fue por crédito) */
+    const entradasConQr = await Promise.all(entradas.map(async (e) => ({
+      ...e,
+      qrDataUrl: await makeTicketQr(e.token),
+    })));
+    const orden = {
+      id: ordenId,
+      comprador_email: email,
+      comprador_nombre: nombre,
+      comprador_dni: dni,
+      estado: 'pagada',
+    };
+
+    let emailSent = false;
+    let emailError = null;
+    if (SMTP_USER && SMTP_PASS) {
+      try {
+        await enviarEmail(orden, entradasConQr);
+        emailSent = true;
+      } catch (err) {
+        emailError = 'Las entradas fueron generadas, pero no pudimos enviar el email ahora. Podés reenviarlas desde Mis ventas.';
+        console.error('[QR_CREDIT USAR EMAIL]', err.message);
+      }
+    }
+
+    res.status(201).json({
+      ok: true,
+      data: {
+        orden_id: ordenId,
+        email_sent: emailSent,
+        email_error: emailError,
+        saldo_restante: saldoFinal,
+        entradas: entradasConQr.map((e) => ({ id: e.id, numero: e.numero, tipo: e.tipo, evento: e.evento })),
+      },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[QR_CREDITS USAR]', err.message);
+    res.status(500).json({ ok: false, error: 'No pudimos emitir las entradas. Intentá nuevamente.' });
+  } finally {
+    client.release();
+  }
+});
+
 app.get('/api/artistas', async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM artistas WHERE activo = true ORDER BY created_at DESC');
@@ -2247,14 +2496,27 @@ app.post('/api/webhook/mp', async (req, res) => {
     res.sendStatus(200);
     if (type !== 'payment' || !paymentId) return;
 
-    const seller = orderId ? await getMercadoPagoSellerForOrder(orderId) : null;
-    const pago = await mpRequest(`/v1/payments/${encodeURIComponent(String(paymentId))}`, {
-      accessToken: seller?.mp_access_token,
-    });
+    /* Determinar si es un webhook de QR prepagos (EJ es el seller) o
+       de compra normal (organizador es el seller con OAuth). */
+    const isQrCredit = req.query?.qr_credit === '1';
+    let accessToken;
+    if (isQrCredit) {
+      accessToken = MP_ACCESS_TOKEN;
+    } else {
+      const seller = orderId ? await getMercadoPagoSellerForOrder(orderId) : null;
+      accessToken = seller?.mp_access_token;
+    }
+    const pago = await mpRequest(`/v1/payments/${encodeURIComponent(String(paymentId))}`, { accessToken });
     console.log('[WEBHOOK] pago:', pago.status, pago.external_reference);
 
     if (pago.status === 'approved' && pago.external_reference) {
-      await procesarPago(pago.external_reference, pago);
+      /* Si external_reference empieza con 'qrcredit:' es una compra de
+         créditos por parte de un organizador. Si no, es compra normal. */
+      if (String(pago.external_reference).startsWith('qrcredit:')) {
+        await procesarCompraQrCredits(pago);
+      } else {
+        await procesarPago(pago.external_reference, pago);
+      }
     }
   } catch (err) {
     console.error('[WEBHOOK] ERROR:', err.message);
@@ -2263,6 +2525,66 @@ app.post('/api/webhook/mp', async (req, res) => {
   }
 });
  
+/* Procesa pago aprobado de compra de créditos QR. Idempotente: si el
+   payment_id ya fue procesado, no incrementa de nuevo. */
+async function procesarCompraQrCredits(pago){
+  const ref = String(pago.external_reference || '');
+  /* Formato: qrcredit:USUARIO_ID:CANTIDAD:TIMESTAMP */
+  const parts = ref.split(':');
+  if (parts.length < 3 || parts[0] !== 'qrcredit') {
+    console.warn('[QR_CREDIT_WEBHOOK] external_reference inválido:', ref);
+    return;
+  }
+  const usuarioId = parts[1];
+  const cantidad = parseInt(parts[2], 10) || 0;
+  if (cantidad < QR_CREDIT_MIN || cantidad > QR_CREDIT_MAX) {
+    console.warn('[QR_CREDIT_WEBHOOK] cantidad fuera de rango:', cantidad);
+    return;
+  }
+  const paymentId = String(pago.id);
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    /* Idempotencia: si ya procesamos este payment_id, salir */
+    const { rows: ya } = await client.query(
+      `SELECT id FROM qr_credits_log WHERE mp_payment_id = $1 AND tipo = 'compra' LIMIT 1`,
+      [paymentId]
+    );
+    if (ya.length) {
+      console.log('[QR_CREDIT_WEBHOOK] Ya procesado payment_id', paymentId);
+      await client.query('ROLLBACK');
+      return;
+    }
+    /* Verificar que el usuario exista */
+    const { rows: usr } = await client.query('SELECT id, qr_credits FROM usuarios WHERE id = $1 FOR UPDATE', [usuarioId]);
+    if (!usr.length) {
+      console.warn('[QR_CREDIT_WEBHOOK] Usuario no encontrado:', usuarioId);
+      await client.query('ROLLBACK');
+      return;
+    }
+    /* Incrementar saldo */
+    const { rows: nuevo } = await client.query(
+      'UPDATE usuarios SET qr_credits = qr_credits + $2 WHERE id = $1 RETURNING qr_credits',
+      [usuarioId, cantidad]
+    );
+    const saldoFinal = Number(nuevo[0].qr_credits);
+    const total = cantidad * QR_CREDIT_PRICE;
+    await client.query(
+      `INSERT INTO qr_credits_log (usuario_id, tipo, cantidad, saldo_despues, monto_total, mp_payment_id, nota)
+       VALUES ($1, 'compra', $2, $3, $4, $5, 'Compra de créditos vía Mercado Pago')`,
+      [usuarioId, cantidad, saldoFinal, total, paymentId]
+    );
+    await client.query('COMMIT');
+    console.log(`[QR_CREDIT_WEBHOOK] +${cantidad} créditos a ${usuarioId}. Saldo: ${saldoFinal}.`);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[QR_CREDIT_WEBHOOK] ERROR:', err.message);
+  } finally {
+    client.release();
+  }
+}
+
 function makeTicketQr(token, width = 240) {
   return QRCode.toDataURL(token, {
     width,
@@ -2701,6 +3023,27 @@ async function autoMigrate(){
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS promo_recibe INT DEFAULT 0`);
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS descripcion_extra TEXT`);
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0`);
+    /* QR prepagos: el organizador compra créditos a EJ y los usa para emitir
+       QRs por ventas off-platform (transferencia bancaria, efectivo, etc.) */
+    await db.query(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS qr_credits INT DEFAULT 0`);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS qr_credits_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        usuario_id UUID NOT NULL,
+        tipo TEXT NOT NULL,
+        cantidad INT NOT NULL,
+        saldo_despues INT,
+        monto_total NUMERIC(12,2),
+        mp_payment_id TEXT,
+        mp_preference_id TEXT,
+        evento_id UUID,
+        orden_id UUID,
+        comprador_email TEXT,
+        nota TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS qr_credits_log_usuario_idx ON qr_credits_log (usuario_id, created_at DESC)`);
     console.log('[MIGRATE] Schema actualizado');
   } catch(err){
     console.error('[MIGRATE] Error:', err.message);

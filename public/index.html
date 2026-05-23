@@ -1838,6 +1838,30 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
       <div class="fsec">
         <h2>Cobros</h2><p class="fsec-desc">Historial de pagos via Mercado Pago</p>
 
+        <!-- ============= QR PREPAGOS ============= -->
+        <div style="background:linear-gradient(135deg,rgba(196,105,43,0.10),rgba(232,160,32,0.06));border:1px solid rgba(196,105,43,0.30);border-radius:var(--r);padding:16px;margin-bottom:14px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">
+            <div>
+              <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--t);margin-bottom:4px;font-weight:700">QR Prepagos</div>
+              <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:900;color:var(--t1);line-height:1.1">Comprá créditos para vender por transferencia</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:2px">Saldo</div>
+              <div id="qr-credits-balance" style="font-family:'Fraunces',serif;font-size:28px;font-weight:900;color:var(--t);line-height:1">0</div>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--t2);line-height:1.55;margin-bottom:12px">
+            Cada crédito = <strong>$200</strong>. Pagás por Mercado Pago una vez y usás los créditos para emitir QRs de cualquier evento tuyo cuando cobrás por afuera (transferencia, efectivo). Tu comprador no paga el 12,60% de servicios.
+          </div>
+          <div class="fg-row" style="margin-bottom:10px">
+            <div class="fg" style="margin:0"><label class="fl">Cantidad a comprar</label><input class="fi" id="qr-credits-cantidad" type="number" min="1" max="500" value="10" oninput="actualizarTotalQrCredits()"></div>
+            <div class="fg" style="margin:0"><label class="fl">Total a pagar</label><input class="fi" id="qr-credits-total" type="text" value="$2.000" readonly style="font-weight:700;color:var(--t)"></div>
+          </div>
+          <button id="qr-credits-buy-btn" class="bcta c" style="width:100%;height:44px" onclick="comprarQrCredits()">Comprar créditos por Mercado Pago</button>
+          <div id="qr-credits-msg" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:12px;line-height:1.45"></div>
+          <details style="margin-top:12px"><summary style="font-size:11px;color:var(--t3);cursor:pointer;padding:4px 0">Ver historial de créditos</summary><div id="qr-credits-log" style="margin-top:8px;font-size:11px;color:var(--t2);max-height:240px;overflow-y:auto">Sin movimientos.</div></details>
+        </div>
+
         <!-- Info: estructura de comisiones -->
         <div style="background:var(--bg2);border:1px solid var(--b1);border-radius:var(--r);padding:14px;margin-bottom:12px">
           <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px">Cómo se reparte el cobro</div>
@@ -2829,6 +2853,28 @@ function chipSel(el,cls){
 </div>
 
 <!-- ================================================================
+     MODAL VENDER QR (usando créditos QR prepagos)
+     ================================================================ -->
+<div id="sell-modal-backdrop" onclick="cerrarSellModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9995"></div>
+<div id="sell-modal" role="dialog" aria-modal="true" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;padding:24px 20px max(24px,env(safe-area-inset-bottom));z-index:9996;max-width:480px;max-height:92vh;overflow-y:auto;margin:0 auto;box-shadow:0 -8px 40px rgba(0,0,0,0.2);transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.2,0.64,1);border-top:1px solid var(--b1)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:var(--t1)">Vender QR (transferencia)</div>
+    <button onclick="cerrarSellModal()" style="background:none;border:none;font-size:22px;color:var(--t3);cursor:pointer;padding:4px 8px;line-height:1">✕</button>
+  </div>
+  <div id="sell-modal-evento-nombre" style="font-size:12px;color:var(--c);margin-bottom:8px;font-weight:600"></div>
+  <div style="font-size:12px;color:var(--t3);line-height:1.5;margin-bottom:14px;padding:10px;background:rgba(196,105,43,.06);border:1px solid rgba(196,105,43,.18);border-radius:8px">
+    Usás un crédito QR prepagado por cada entrada. El comprador recibe su QR como una compra normal, <strong>sin cargo del 12,60%</strong>.
+    Saldo actual: <strong id="sell-modal-balance" style="color:var(--t)">0</strong> crédito(s).
+  </div>
+  <select id="sell-event" style="display:none"><option value="">Seleccioná un evento</option></select>
+  <div class="fg-row"><div class="fg"><label class="fl">Tipo de entrada</label><select class="fi-sel" id="sell-ticket"><option value="">General</option></select></div><div class="fg"><label class="fl">Cantidad</label><input class="fi" id="sell-qty" type="number" min="1" max="20" value="1"></div></div>
+  <div class="fg"><label class="fl">Nombre del comprador</label><input class="fi" id="sell-name" type="text" placeholder="Nombre y apellido"></div>
+  <div class="fg-row"><div class="fg"><label class="fl">Email</label><input class="fi" id="sell-email" type="email" placeholder="comprador@email.com"></div><div class="fg"><label class="fl">DNI (opcional)</label><input class="fi" id="sell-dni" type="text" inputmode="numeric" placeholder="Sin puntos"></div></div>
+  <button class="btn-sub c" id="sell-submit" onclick="enviarVentaQrCredit(event)" style="margin-top:4px">Emitir y enviar QR</button>
+  <div class="publish-note" id="sell-note" style="margin-top:8px"></div>
+</div>
+
+<!-- ================================================================
      MODAL EDITAR EVENTO
      ================================================================ -->
 <div id="edit-evento-backdrop" onclick="cerrarEditarEvento()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9997"></div>
@@ -3234,6 +3280,7 @@ function setAutenticado(u, token){
   syncCompradorFields();
   cargarMisProductos();
   cargarMercadoPagoStatus();
+  if(typeof cargarQrCreditsStatus === 'function') cargarQrCreditsStatus();
   ejRestoreNavAuth();
   /* Si el usuario entró por un link compartido y eligió cantidades antes de
      loguearse, refrescamos la vista de compra para mostrar el form con sus
@@ -5075,9 +5122,10 @@ function renderOrgEvents(events){
     row.innerHTML = '<div class="ev-row-top"><div class="ev-row-nm">'+escapeHtml(item.name)+'</div><span class="badge '+(item.status === 'draft' ? 'b-dr' : 'b-ok')+'">'+(item.status === 'draft' ? 'Borrador' : 'Activo')+'</span></div>'+
       '<div class="ev-row-meta">'+escapeHtml([formatearFecha(item.date),item.place,item.price].filter(Boolean).join(' · '))+'</div>'+
       '<div class="ev-row-stats" data-org-event-id="'+escapeHtml(String(item.id))+'"><div class="ev-row-stat">'+(item.flyer ? 'Flyer cargado' : 'Sin flyer')+'</div></div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">'+
-        '<button class="btn-sec" style="height:38px" onclick="prepararRegaloEvento(\''+escapeHtml(String(item.id))+'\')">Enviar QR de regalo</button>'+
-        '<button class="btn-sec" style="height:38px" onclick="editarEvento(\''+escapeHtml(String(item.id))+'\')">Editar evento</button>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px">'+
+        '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="prepararVentaQrCredit(\''+escapeHtml(String(item.id))+'\')">Vender QR</button>'+
+        '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="prepararRegaloEvento(\''+escapeHtml(String(item.id))+'\')">Regalar QR</button>'+
+        '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="editarEvento(\''+escapeHtml(String(item.id))+'\')">Editar</button>'+
       '</div>';
     var firstRow = list.querySelector('.ev-row');
     list.insertBefore(row, firstRow);
@@ -5355,6 +5403,201 @@ function formatearFecha(d){
   return s;
 }
 
+/* ============================================================
+   QR PREPAGOS — créditos comprados a EJ para emitir QRs por
+   ventas off-platform (transferencia/efectivo).
+   ============================================================ */
+
+var QR_CREDIT_PRICE_FRONT = 200;
+var _qrCreditsBalance = 0;
+
+function actualizarTotalQrCredits(){
+  var input = document.getElementById('qr-credits-cantidad');
+  var totalEl = document.getElementById('qr-credits-total');
+  var n = parseInt(input?.value || '0', 10) || 0;
+  if(n < 1) n = 1;
+  if(n > 500) n = 500;
+  if(input && input.value !== String(n)) input.value = String(n);
+  var total = n * QR_CREDIT_PRICE_FRONT;
+  if(totalEl) totalEl.value = '$' + total.toLocaleString('es-AR');
+}
+
+async function cargarQrCreditsStatus(){
+  if(!BACKEND || !_usuario) return;
+  try{
+    var r = await fetch(BACKEND + '/api/organizador/qr-credits', { headers: apiHeaders() });
+    var d = await r.json();
+    if(!r.ok || !d.ok) return;
+    _qrCreditsBalance = Number(d.data.balance || 0);
+    QR_CREDIT_PRICE_FRONT = Number(d.data.precio_unitario || 200);
+    var balEl = document.getElementById('qr-credits-balance');
+    if(balEl) balEl.textContent = String(_qrCreditsBalance);
+    var balSell = document.getElementById('sell-modal-balance');
+    if(balSell) balSell.textContent = String(_qrCreditsBalance);
+    actualizarTotalQrCredits();
+    renderQrCreditsLog(d.data.log || []);
+  }catch(e){ /* silencioso */ }
+}
+
+function renderQrCreditsLog(log){
+  var box = document.getElementById('qr-credits-log');
+  if(!box) return;
+  if(!log.length){ box.textContent = 'Sin movimientos.'; return; }
+  box.innerHTML = log.slice(0, 20).map(function(l){
+    var fecha = (new Date(l.created_at)).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+    var label = l.tipo === 'compra' ? '+' + l.cantidad + ' compra' : (l.tipo === 'uso' ? '-' + l.cantidad + ' uso' : l.tipo);
+    var color = l.tipo === 'compra' ? 'var(--g)' : (l.tipo === 'uso' ? 'var(--t2)' : 'var(--t3)');
+    var detail = l.comprador_email ? ' · ' + escapeHtml(l.comprador_email) : (l.monto_total ? ' · $' + Number(l.monto_total).toLocaleString('es-AR') : '');
+    return '<div style="padding:5px 0;border-bottom:1px solid var(--b1)"><span style="color:'+color+';font-weight:600">'+label+'</span><span style="color:var(--t3)"> · '+fecha+detail+'</span></div>';
+  }).join('');
+}
+
+async function comprarQrCredits(){
+  var input = document.getElementById('qr-credits-cantidad');
+  var btn = document.getElementById('qr-credits-buy-btn');
+  var msg = document.getElementById('qr-credits-msg');
+  var cantidad = parseInt(input?.value || '0', 10) || 0;
+  if(cantidad < 1 || cantidad > 500){
+    if(msg){ msg.style.display = 'block'; msg.style.background = 'rgba(196,64,64,.08)'; msg.style.color = '#C44040'; msg.textContent = 'Cantidad inválida (entre 1 y 500).'; }
+    return;
+  }
+  if(btn){ btn.disabled = true; btn.textContent = 'Generando link de pago...'; }
+  if(msg){ msg.style.display = 'none'; }
+  try{
+    var r = await fetch(BACKEND + '/api/organizador/qr-credits/comprar', {
+      method:'POST', headers: apiHeaders(),
+      body: JSON.stringify({ cantidad: cantidad })
+    });
+    var d = await r.json();
+    if(!r.ok || !d.ok || !d.data?.init_point) throw new Error(d.error || 'No se pudo iniciar el pago.');
+    /* Abrir el checkout de MP en la misma pestaña — después MP redirige
+       de vuelta al sitio con ?qr_credit=ok */
+    window.location.href = d.data.init_point;
+  }catch(e){
+    if(msg){ msg.style.display = 'block'; msg.style.background = 'rgba(196,64,64,.08)'; msg.style.color = '#C44040'; msg.textContent = e.message || 'No pudimos iniciar el pago.'; }
+    if(btn){ btn.disabled = false; btn.textContent = 'Comprar créditos por Mercado Pago'; }
+  }
+}
+
+/* ====== Modal Vender QR (usa créditos) ====== */
+
+function abrirSellModal(){
+  var m = document.getElementById('sell-modal');
+  var b = document.getElementById('sell-modal-backdrop');
+  if(m){ m.style.display = 'block'; setTimeout(function(){ m.style.transform = 'translateY(0)'; }, 10); }
+  if(b) b.style.display = 'block';
+}
+function cerrarSellModal(){
+  var m = document.getElementById('sell-modal');
+  var b = document.getElementById('sell-modal-backdrop');
+  if(m){ m.style.transform = 'translateY(100%)'; setTimeout(function(){ m.style.display = 'none'; }, 350); }
+  if(b) b.style.display = 'none';
+  ['sell-name','sell-email','sell-dni'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
+  var qty = document.getElementById('sell-qty'); if(qty) qty.value = '1';
+}
+
+function prepararVentaQrCredit(eventId){
+  if(!requireAccount('Necesitas iniciar sesión.')) return;
+  /* Recargar saldo antes de abrir */
+  cargarQrCreditsStatus();
+  var store = ejLoadStore();
+  var ev = (store.myEvents || []).find(function(e){ return String(e.id) === String(eventId); });
+  if(!ev){ alert('Evento no encontrado.'); return; }
+  var sel = document.getElementById('sell-event');
+  if(sel) sel.value = String(eventId);
+  var nombreEl = document.getElementById('sell-modal-evento-nombre');
+  if(nombreEl) nombreEl.textContent = ev.name || '';
+  /* Poblar tipos de entrada */
+  var ticketSel = document.getElementById('sell-ticket');
+  var tipos = ev.tipos_entrada || [];
+  if(ticketSel){
+    ticketSel.innerHTML = tipos.length
+      ? tipos.map(function(t){ return '<option value="'+escapeHtml(String(t.id))+'">'+escapeHtml(t.nombre || 'General')+'</option>'; }).join('')
+      : '<option value="">General</option>';
+  }
+  var note = document.getElementById('sell-note');
+  if(note) note.textContent = '';
+  abrirSellModal();
+  var name = document.getElementById('sell-name');
+  if(name) setTimeout(function(){ name.focus(); }, 380);
+}
+
+async function enviarVentaQrCredit(event){
+  if(event) event.preventDefault();
+  var note = document.getElementById('sell-note');
+  var btn = document.getElementById('sell-submit');
+  var payload = {
+    evento_id: document.getElementById('sell-event')?.value || '',
+    tipo_entrada_id: document.getElementById('sell-ticket')?.value || '',
+    cantidad: document.getElementById('sell-qty')?.value || '1',
+    nombre: document.getElementById('sell-name')?.value.trim() || '',
+    email: document.getElementById('sell-email')?.value.trim() || '',
+    dni: document.getElementById('sell-dni')?.value.trim() || ''
+  };
+  if(!payload.nombre){ if(note){ note.style.color = '#C44040'; note.textContent = 'Ingresá el nombre del comprador.'; } return; }
+  if(!payload.email || !payload.email.includes('@')){ if(note){ note.style.color = '#C44040'; note.textContent = 'Ingresá un email válido.'; } return; }
+  var cantidadNum = parseInt(payload.cantidad, 10) || 1;
+  if(cantidadNum > _qrCreditsBalance){
+    if(note){ note.style.color = '#C44040'; note.textContent = 'Saldo insuficiente. Tenés '+_qrCreditsBalance+' crédito(s) y necesitás '+cantidadNum+'.'; }
+    return;
+  }
+  if(note){ note.style.color = 'var(--t3)'; note.textContent = 'Emitiendo entradas...'; }
+  if(btn){ btn.disabled = true; btn.textContent = 'Emitiendo...'; }
+  try{
+    var res = await fetch(BACKEND + '/api/organizador/qr-credits/usar', {
+      method:'POST', headers: apiHeaders(),
+      body: JSON.stringify(payload)
+    });
+    var data = await res.json().catch(function(){ return {}; });
+    if(!res.ok || !data.ok) throw new Error(data.error || 'No se pudo emitir.');
+    var emailOk = data.data?.email_sent;
+    if(note){
+      note.style.color = emailOk ? 'var(--g)' : 'var(--s)';
+      note.textContent = emailOk
+        ? ('QR enviado por email. Saldo restante: '+data.data.saldo_restante+'.')
+        : 'QR generado pero el email no salió. Reintentá desde Mis ventas.';
+    }
+    cargarQrCreditsStatus();
+    cargarMisProductos();
+    cargarOrganizadorStats();
+    setTimeout(cerrarSellModal, 1500);
+  }catch(e){
+    if(note){ note.style.color = '#C44040'; note.textContent = e.message || 'No se pudo emitir.'; }
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Emitir y enviar QR'; }
+  }
+}
+
+/* Detectar regreso de Mercado Pago tras compra de créditos */
+function procesarQrCreditCallback(){
+  var params = new URLSearchParams(window.location.search);
+  var st = params.get('qr_credit');
+  if(!st) return;
+  history.replaceState({}, document.title, window.location.pathname);
+  /* Mostrar un toast/mensaje en cobros y refrescar saldo. El webhook
+     ya debería haber procesado el pago. */
+  setTimeout(function(){
+    cargarQrCreditsStatus();
+    var msg = document.getElementById('qr-credits-msg');
+    if(msg){
+      msg.style.display = 'block';
+      if(st === 'ok'){
+        msg.style.background = 'rgba(61,170,106,.10)';
+        msg.style.color = 'var(--g)';
+        msg.textContent = '✓ Pago aprobado. Tu saldo se actualiza en segundos.';
+      } else if(st === 'pendiente'){
+        msg.style.background = 'rgba(232,160,32,.10)';
+        msg.style.color = '#E8A020';
+        msg.textContent = 'Pago pendiente. Apenas Mercado Pago lo apruebe vas a ver el saldo actualizado.';
+      } else {
+        msg.style.background = 'rgba(196,64,64,.08)';
+        msg.style.color = '#C44040';
+        msg.textContent = 'El pago no se completó. Probá nuevamente.';
+      }
+    }
+  }, 800);
+}
+
 document.addEventListener('DOMContentLoaded', function(){
   renderFlyerMarketing();
   renderPublicEvents(ejLoadStore().events || []);
@@ -5363,6 +5606,10 @@ document.addEventListener('DOMContentLoaded', function(){
   cargarDirectoriosPublicos();
   startFlyerWheel();
   inicializarTiposEntradaForm();
+  /* Si volvimos de un checkout MP de compra de créditos, mostrar feedback */
+  if(typeof procesarQrCreditCallback === 'function') procesarQrCreditCallback();
+  /* Inicializar total de QR credits para que muestre $2.000 con cantidad 10 */
+  if(typeof actualizarTotalQrCredits === 'function') actualizarTotalQrCredits();
 
   /* === DETECTOR DE IN-APP BROWSER (Instagram, WhatsApp, Facebook, TikTok...) ===
      Cuando alguien abre un link compartido desde una red social, suele caer en
