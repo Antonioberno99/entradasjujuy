@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>EJ Scanner — EntradasJujuy</title>
+<meta name="theme-color" content="#C4692B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EJ Scanner">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<link rel="apple-touch-icon" href="/icons/icon.svg">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0704;color:#EAE0D0;min-height:100vh;min-height:100dvh;line-height:1.5;-webkit-font-smoothing:antialiased}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.container{max-width:520px;margin:0 auto;padding:16px;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.logo{font-family:Georgia,serif;font-weight:900;font-size:18px;color:#C4692B;letter-spacing:-.5px}
+.logo span{color:#3A6FA0}
+.subtitle{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9A8670}
+.status-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:5px 10px;border-radius:999px;border:1px solid}
+.status-pill.online{background:rgba(61,170,106,.12);border-color:rgba(61,170,106,.45);color:#3DAA6A}
+.status-pill.offline{background:rgba(232,160,32,.12);border-color:rgba(232,160,32,.5);color:#E8A020}
+.status-pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Auth panel */
+.auth-card{background:#1a0e06;border:1px solid rgba(196,105,43,.25);border-radius:14px;padding:22px;margin-bottom:14px}
+.auth-title{font-size:18px;font-weight:800;color:#EAE0D0;margin-bottom:6px}
+.auth-desc{font-size:13px;color:#9A8670;line-height:1.5;margin-bottom:16px}
+.fi{width:100%;height:46px;padding:0 14px;background:#0a0704;border:1px solid rgba(196,105,43,.22);border-radius:10px;font-size:15px;color:#EAE0D0;outline:none;-webkit-appearance:none;margin-bottom:10px;font-family:inherit}
+.fi:focus{border-color:#C4692B}
+.btn{width:100%;height:48px;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:.3px}
+.btn-primary{background:linear-gradient(180deg,#d8792e 0%,#c4692b 100%);color:#0a0704;box-shadow:0 8px 22px rgba(196,105,43,.25)}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary:disabled{opacity:.5;cursor:wait}
+.btn-secondary{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:#EAE0D0}
+.btn-danger{background:#C44040;color:#fff}
+.btn-link{background:none;border:none;color:#C4692B;font-size:13px;text-decoration:underline;cursor:pointer;padding:6px}
+.msg{font-size:12px;line-height:1.45;padding:10px 12px;border-radius:8px;margin-top:8px}
+.msg-error{background:rgba(196,64,64,.08);border:1px solid rgba(196,64,64,.25);color:#C44040}
+.msg-ok{background:rgba(61,170,106,.08);border:1px solid rgba(61,170,106,.30);color:#3DAA6A}
+.msg-warn{background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.30);color:#E8A020}
+
+/* Sync card */
+.sync-card{background:#1a0e06;border:1px solid rgba(196,105,43,.2);border-radius:12px;padding:14px;margin-bottom:12px}
+.sync-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.sync-row:last-child{margin-bottom:0}
+.sync-label{font-size:11px;color:#9A8670}
+.sync-value{font-size:16px;font-weight:800;color:#EAE0D0}
+.sync-value strong{color:#C4692B}
+
+/* Scanner */
+.scanner-wrap{flex:1;display:flex;flex-direction:column}
+video{width:100%;max-height:60vh;background:#000;border-radius:14px;border:1px solid rgba(196,105,43,.3);object-fit:cover}
+canvas{display:none}
+.scanner-controls{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.scanner-controls .btn{height:44px;font-size:13px}
+
+/* Result */
+.result{margin-top:12px;border-radius:14px;padding:18px;text-align:center;animation:slideIn .25s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.result.ok{background:rgba(61,170,106,.12);border:1px solid rgba(61,170,106,.4);color:#3DAA6A}
+.result.used{background:rgba(232,160,32,.12);border:1px solid rgba(232,160,32,.45);color:#E8A020}
+.result.error{background:rgba(196,64,64,.10);border:1px solid rgba(196,64,64,.35);color:#C44040}
+.result-icon{font-size:56px;font-weight:900;line-height:1;margin-bottom:8px}
+.result-title{font-size:22px;font-weight:800;margin-bottom:6px}
+.result-detail{font-size:13px;color:#9A8670;line-height:1.5}
+
+/* Historial */
+.hist{margin-top:14px;background:#1a0e06;border:1px solid rgba(196,105,43,.18);border-radius:12px;padding:12px}
+.hist-title{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#9A8670;margin-bottom:8px}
+.hist-row{font-size:11px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);color:#9A8670;display:flex;justify-content:space-between;gap:8px}
+.hist-row:last-child{border-bottom:none}
+.hist-row .who{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist-row .when{flex-shrink:0;color:#7d6c52}
+.hist-row.ok{color:#3DAA6A}
+.hist-row.used{color:#E8A020}
+.hist-row.error{color:#C44040}
+
+/* Manual input */
+details{margin-top:10px}
+summary{font-size:12px;color:#9A8670;cursor:pointer;padding:6px 0;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'+ '}
+details[open] summary::before{content:'− '}
+textarea.fi{height:80px;resize:vertical;padding:10px 14px}
+
+footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color:#5C4E3C}
+.hide{display:none !important}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- BRAND + STATUS -->
+  <div class="brand">
+    <div>
+      <div class="logo">Entradas<span>Jujuy</span></div>
+      <div class="subtitle">Scanner</div>
+    </div>
+    <div id="status-pill" class="status-pill online"><span class="dot"></span><span id="status-label">Online</span></div>
+  </div>
+
+  <!-- AUTH (visible si no hay sesión) -->
+  <div id="auth-section">
+    <div class="auth-card">
+      <div class="auth-title">Iniciá sesión</div>
+      <div class="auth-desc">Ingresá con tu cuenta de organizador para validar QRs de tus eventos.</div>
+      <input id="auth-email" class="fi" type="email" placeholder="Email" autocomplete="email">
+      <input id="auth-password" class="fi" type="password" placeholder="Contraseña" autocomplete="current-password">
+      <button class="btn btn-primary" id="auth-submit" onclick="hacerLogin()">Ingresar</button>
+      <div id="auth-msg" class="msg msg-error hide"></div>
+      <p style="font-size:11px;color:#7d6c52;text-align:center;margin-top:12px;line-height:1.4">¿Todavía no tenés cuenta? Andá a <strong style="color:#C4692B">entradasjujuy.shop</strong> para registrarte como organizador.</p>
+    </div>
+  </div>
+
+  <!-- APP (visible si hay sesión) -->
+  <div id="app-section" class="hide">
+
+    <!-- Sync card -->
+    <div class="sync-card">
+      <div class="sync-row">
+        <div>
+          <div class="sync-label">Cuenta</div>
+          <div class="sync-value" id="user-name" style="font-size:14px">—</div>
+        </div>
+        <button class="btn-link" onclick="cerrarSesion()" style="font-size:11px">Cerrar sesión</button>
+      </div>
+      <div class="sync-row">
+        <div>
+          <div class="sync-label">Entradas listas offline</div>
+          <div class="sync-value"><strong id="entradas-count">0</strong></div>
+        </div>
+        <div style="text-align:right">
+          <div class="sync-label">Última sincronización</div>
+          <div class="sync-value" id="last-sync" style="font-size:13px">Nunca</div>
+        </div>
+      </div>
+      <div class="sync-row">
+        <div>
+          <div class="sync-label">Pendientes de subir</div>
+          <div class="sync-value"><strong id="queue-count" style="color:#E8A020">0</strong></div>
+        </div>
+      </div>
+      <button class="btn btn-secondary" onclick="sincronizar()" id="sync-btn" style="margin-top:4px">Sincronizar ahora</button>
+      <div id="sync-msg" class="msg hide" style="margin-top:8px"></div>
+    </div>
+
+    <!-- Scanner -->
+    <div class="scanner-wrap">
+      <video id="qr-video" playsinline webkit-playsinline muted></video>
+      <canvas id="qr-canvas"></canvas>
+      <div class="scanner-controls">
+        <button class="btn btn-primary" id="open-cam-btn" onclick="abrirCamara()">📷 Abrir cámara</button>
+        <button class="btn btn-danger hide" id="close-cam-btn" onclick="cerrarCamara()">Cerrar cámara</button>
+      </div>
+
+      <!-- Resultado -->
+      <div id="result" class="hide"></div>
+
+      <!-- Input manual -->
+      <details>
+        <summary>Ingresar código manualmente</summary>
+        <textarea id="manual-input" class="fi" placeholder="Pegá el token del QR"></textarea>
+        <button class="btn btn-secondary" onclick="validarManual()" style="margin-top:4px">Validar</button>
+      </details>
+
+      <!-- Historial -->
+      <div class="hist">
+        <div class="hist-title">Últimas validaciones</div>
+        <div id="hist-rows">
+          <div class="hist-row"><span class="who">Sin validaciones todavía</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>EntradasJujuy · v1.0 · <span id="footer-status">cargando...</span></footer>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ============ CONFIG ============ */
+  var API_BASE = window.location.origin === 'https://www.entradasjujuy.shop' || window.location.origin === 'https://entradasjujuy.shop'
+    ? 'https://entradasjujuy-backend.onrender.com'
+    : window.location.origin.replace(':3000', ':3001');
+  /* Fallback: si estamos en Vercel preview o algo raro */
+  if(!/render\.com|localhost/.test(API_BASE)) API_BASE = 'https://entradasjujuy-backend.onrender.com';
+
+  var TOKEN_KEY = 'ej-scanner-token';
+  var USER_KEY = 'ej-scanner-user';
+  var SYNC_KEY = 'ej-scanner-last-sync';
+  var QUEUE_KEY = 'ej-scanner-queue';
+  var CACHE_KEY = 'ej-scanner-entradas';
+  var HIST_KEY = 'ej-scanner-hist';
+
+  /* ============ STATE ============ */
+  var entradasCache = {}; /* {entrada_id: {evento, tipo, comprador, estado_local}} */
+  var queue = []; /* [{entrada_id, validated_at}] */
+  var hist = []; /* últimas validaciones para mostrar */
+  var camStream = null;
+  var camBusy = false;
+  var camLastToken = '';
+  var camLastTokenAt = 0;
+  var jsQRLoaded = null;
+
+  /* ============ HELPERS ============ */
+
+  function getToken(){ return localStorage.getItem(TOKEN_KEY) || ''; }
+  function getUser(){ try{ return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); }catch(e){ return null; } }
+  function setSession(token, user){
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  }
+  function clearSession(){
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  }
+
+  function loadFromStorage(){
+    try{ entradasCache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}') || {}; }catch(e){ entradasCache = {}; }
+    try{ queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]') || []; }catch(e){ queue = []; }
+    try{ hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]') || []; }catch(e){ hist = []; }
+  }
+  function saveCache(){ localStorage.setItem(CACHE_KEY, JSON.stringify(entradasCache)); }
+  function saveQueue(){ localStorage.setItem(QUEUE_KEY, JSON.stringify(queue)); }
+  function saveHist(){ localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(0, 50))); }
+
+  function updateStatusUI(){
+    var pill = document.getElementById('status-pill');
+    var lbl = document.getElementById('status-label');
+    if(navigator.onLine){
+      pill.classList.remove('offline'); pill.classList.add('online');
+      lbl.textContent = 'Online';
+    } else {
+      pill.classList.remove('online'); pill.classList.add('offline');
+      lbl.textContent = 'Sin conexión';
+    }
+    document.getElementById('footer-status').textContent = navigator.onLine ? 'conectado' : 'modo offline';
+  }
+
+  function updateCountsUI(){
+    document.getElementById('entradas-count').textContent = String(Object.keys(entradasCache).length);
+    document.getElementById('queue-count').textContent = String(queue.length);
+    var lastSync = localStorage.getItem(SYNC_KEY);
+    document.getElementById('last-sync').textContent = lastSync
+      ? new Date(lastSync).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : 'Nunca';
+  }
+
+  function renderHist(){
+    var box = document.getElementById('hist-rows');
+    if(!box) return;
+    if(!hist.length){ box.innerHTML = '<div class="hist-row"><span class="who">Sin validaciones todavía</span></div>'; return; }
+    box.innerHTML = hist.slice(0, 10).map(function(h){
+      var hora = new Date(h.at).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      var who = h.who || (h.entrada_id ? h.entrada_id.slice(0, 8) : 'QR');
+      return '<div class="hist-row '+(h.tipo||'')+'"><span class="who">'+escapeHtml(who)+' · '+escapeHtml(h.msg||'')+'</span><span class="when">'+escapeHtml(hora)+'</span></div>';
+    }).join('');
+  }
+
+  function escapeHtml(s){
+    return String(s||'').replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+
+  function showSyncMsg(text, tipo){
+    var el = document.getElementById('sync-msg');
+    el.textContent = text;
+    el.className = 'msg msg-' + (tipo || 'ok');
+    el.classList.remove('hide');
+    setTimeout(function(){ el.classList.add('hide'); }, 3000);
+  }
+
+  function showResult(tipo, msg, info){
+    var box = document.getElementById('result');
+    var icons = { ok:'✓', used:'!', error:'×' };
+    var titles = { ok:'Entrada válida', used:'Ya utilizada', error:'Inválida' };
+    box.className = 'result ' + tipo;
+    box.classList.remove('hide');
+    box.innerHTML =
+      '<div class="result-icon">'+icons[tipo]+'</div>'+
+      '<div class="result-title">'+titles[tipo]+'</div>'+
+      '<div class="result-detail">'+escapeHtml(msg||'')+'</div>'+
+      (info ? '<div class="result-detail" style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)">'+escapeHtml(info)+'</div>' : '');
+    /* Beep + vibración */
+    feedback(tipo);
+  }
+
+  function feedback(tipo){
+    try{
+      var ctx = new (window.AudioContext||window.webkitAudioContext)();
+      var osc = ctx.createOscillator();
+      var g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.frequency.value = tipo === 'ok' ? 880 : (tipo === 'used' ? 420 : 220);
+      g.gain.setValueAtTime(0.18, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      osc.start(); osc.stop(ctx.currentTime + 0.26);
+    }catch(e){}
+    try{
+      if(navigator.vibrate){
+        if(tipo === 'ok') navigator.vibrate(80);
+        else navigator.vibrate([60, 60, 60, 60, 60]);
+      }
+    }catch(e){}
+  }
+
+  /* ============ AUTH ============ */
+
+  async function hacerLogin(){
+    var emailEl = document.getElementById('auth-email');
+    var passEl = document.getElementById('auth-password');
+    var msg = document.getElementById('auth-msg');
+    var btn = document.getElementById('auth-submit');
+    var email = emailEl.value.trim();
+    var password = passEl.value;
+    msg.classList.add('hide');
+    if(!email.includes('@') || password.length < 4){
+      msg.textContent = 'Email o contraseña inválidos.';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hide');
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Ingresando...';
+    try{
+      var r = await fetch(API_BASE + '/api/auth/login', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email: email, password: password })
+      });
+      var d = await r.json();
+      if(d.needs_verification){
+        msg.textContent = 'Tu cuenta no está verificada. Confirmá tu email desde la web antes de usar el escáner.';
+        msg.className = 'msg msg-warn';
+        msg.classList.remove('hide');
+        return;
+      }
+      if(!r.ok || !d.ok || !d.token){
+        throw new Error(d.error || 'Email o contraseña incorrectos.');
+      }
+      setSession(d.token, d.usuario);
+      showApp();
+    }catch(e){
+      msg.textContent = e.message || 'No pudimos ingresar. Revisá tu conexión.';
+      msg.className = 'msg msg-error';
+      msg.classList.remove('hide');
+    }finally{
+      btn.disabled = false; btn.textContent = 'Ingresar';
+      passEl.value = '';
+    }
+  }
+
+  function cerrarSesion(){
+    if(!confirm('¿Cerrar sesión? Las validaciones pendientes de subir se mantienen.')) return;
+    clearSession();
+    cerrarCamara();
+    document.getElementById('app-section').classList.add('hide');
+    document.getElementById('auth-section').classList.remove('hide');
+  }
+
+  function showApp(){
+    document.getElementById('auth-section').classList.add('hide');
+    document.getElementById('app-section').classList.remove('hide');
+    var user = getUser();
+    document.getElementById('user-name').textContent = user ? (user.nombre + ' (' + user.email + ')') : '—';
+    updateCountsUI();
+    renderHist();
+    /* Si hay conexión y nunca sincronizó, hacerlo ahora */
+    if(navigator.onLine){
+      var lastSync = localStorage.getItem(SYNC_KEY);
+      if(!lastSync) sincronizar();
+      else flushQueue(); /* o al menos subir pendientes */
+    }
+  }
+
+  /* ============ SYNC ============ */
+
+  async function sincronizar(){
+    var btn = document.getElementById('sync-btn');
+    if(!navigator.onLine){
+      showSyncMsg('Sin conexión. Las validaciones se guardan localmente.', 'warn');
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Sincronizando...';
+    try{
+      /* 1. Subir pendientes (si hay) */
+      if(queue.length){
+        await flushQueue();
+      }
+      /* 2. Bajar entradas actualizadas */
+      var r = await fetch(API_BASE + '/api/organizador/entradas-offline', {
+        headers: { 'Authorization': 'Bearer ' + getToken() }
+      });
+      var d = await r.json();
+      if(r.status === 401){
+        showSyncMsg('Sesión expirada. Ingresá nuevamente.', 'error');
+        clearSession();
+        document.getElementById('app-section').classList.add('hide');
+        document.getElementById('auth-section').classList.remove('hide');
+        return;
+      }
+      if(!r.ok || !d.ok) throw new Error(d.error || 'Error sincronizando.');
+      /* Reconstruir cache */
+      entradasCache = {};
+      (d.data.entradas || []).forEach(function(e){
+        entradasCache[e.id] = e;
+      });
+      saveCache();
+      localStorage.setItem(SYNC_KEY, new Date().toISOString());
+      updateCountsUI();
+      showSyncMsg('Listo. ' + d.data.count + ' entradas listas para validar offline.', 'ok');
+    }catch(e){
+      showSyncMsg(e.message || 'No pudimos sincronizar.', 'error');
+    }finally{
+      btn.disabled = false; btn.textContent = 'Sincronizar ahora';
+    }
+  }
+
+  async function flushQueue(){
+    if(!queue.length || !navigator.onLine) return;
+    try{
+      var r = await fetch(API_BASE + '/api/organizador/validar-qr-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + getToken() },
+        body: JSON.stringify({ validaciones: queue })
+      });
+      var d = await r.json();
+      if(r.ok && d.ok){
+        /* Limpiar queue independientemente del resultado (las validaciones
+           ya fueron procesadas — incluso las 'ya_usada' son OK para nosotros). */
+        queue = [];
+        saveQueue();
+        updateCountsUI();
+      }
+    }catch(e){
+      /* Sin conexión real — los mantenemos en queue */
+      console.warn('Error subiendo queue:', e.message);
+    }
+  }
+
+  /* ============ VALIDACIÓN ============ */
+
+  /* Decodifica el payload de un JWT sin verificar firma (para extraer entrada_id) */
+  function decodeJwtPayload(token){
+    try{
+      var parts = String(token).split('.');
+      if(parts.length !== 3) return null;
+      var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      while(b64.length % 4) b64 += '=';
+      var json = atob(b64);
+      return JSON.parse(decodeURIComponent(escape(json)));
+    }catch(e){ return null; }
+  }
+
+  async function validarQR(token){
+    if(!token) return;
+    /* Si hay conexión, validar contra backend (que verifica firma + estado) */
+    if(navigator.onLine){
+      try{
+        var r = await fetch(API_BASE + '/api/validar-qr', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + getToken() },
+          body: JSON.stringify({ token: token })
+        });
+        var d = await r.json();
+        if(r.status === 401){
+          /* Token expirado — caer al modo offline */
+          return validarOffline(token);
+        }
+        if(d.valida){
+          /* Actualizar cache local: marcar como usada para el próximo modo offline */
+          var payload = decodeJwtPayload(token);
+          if(payload?.entrada_id && entradasCache[payload.entrada_id]){
+            entradasCache[payload.entrada_id].estado = 'usada';
+            saveCache();
+          }
+          mostrarYRegistrar('ok', 'Entrada válida. Acceso habilitado.', d.entrada);
+        } else {
+          var motivo = d.motivo || d.error || 'Entrada no válida.';
+          var esYaUsada = /ya utilizada|ya fue|ya entr/i.test(motivo);
+          mostrarYRegistrar(esYaUsada ? 'used' : 'error', motivo, d.entrada);
+        }
+        return;
+      }catch(e){
+        /* Si la red falla, cae al modo offline */
+        return validarOffline(token);
+      }
+    }
+    return validarOffline(token);
+  }
+
+  function validarOffline(token){
+    var payload = decodeJwtPayload(token);
+    if(!payload || payload.type !== 'ticket' || !payload.entrada_id){
+      mostrarYRegistrar('error', 'QR inválido o falsificado.');
+      return;
+    }
+    var entrada = entradasCache[payload.entrada_id];
+    if(!entrada){
+      mostrarYRegistrar('error', 'Entrada no encontrada en la cache. Sincronizá cuando vuelva la conexión.');
+      return;
+    }
+    if(entrada.estado === 'usada'){
+      mostrarYRegistrar('used', 'Entrada ya utilizada (validada antes).', entrada);
+      return;
+    }
+    if(entrada.estado === 'cancelada'){
+      mostrarYRegistrar('error', 'Entrada cancelada.', entrada);
+      return;
+    }
+    /* Verificar hora_limite si existe (timezone Jujuy) */
+    if(entrada.hora_limite){
+      try{
+        var nowJujuy = new Intl.DateTimeFormat('es-AR', { timeZone:'America/Argentina/Jujuy', hour:'2-digit', minute:'2-digit', hour12:false }).format(new Date());
+        if(nowJujuy > String(entrada.hora_limite).slice(0,5)){
+          mostrarYRegistrar('error', 'Esta entrada solo era válida hasta las ' + String(entrada.hora_limite).slice(0,5), entrada);
+          return;
+        }
+      }catch(e){}
+    }
+    /* OK: marcar usada localmente + queue */
+    entrada.estado = 'usada';
+    saveCache();
+    queue.push({ entrada_id: payload.entrada_id, validated_at: new Date().toISOString() });
+    saveQueue();
+    updateCountsUI();
+    mostrarYRegistrar('ok', 'Entrada válida. (Validado offline — se sincroniza después)', entrada);
+    /* Intentar sync en background — sin esperar */
+    if(navigator.onLine) setTimeout(flushQueue, 500);
+  }
+
+  function mostrarYRegistrar(tipo, msg, entrada){
+    var info = entrada
+      ? [entrada.evento, entrada.tipo, entrada.comprador_nombre, entrada.comprador_dni].filter(Boolean).join(' · ')
+      : '';
+    showResult(tipo, msg, info);
+    hist.unshift({
+      at: Date.now(),
+      tipo: tipo,
+      msg: msg,
+      who: entrada?.comprador_nombre || (entrada?.evento || ''),
+      entrada_id: entrada?.id || ''
+    });
+    hist = hist.slice(0, 50);
+    saveHist();
+    renderHist();
+  }
+
+  /* ============ CÁMARA ============ */
+
+  function loadJsQR(){
+    if(jsQRLoaded) return jsQRLoaded;
+    jsQRLoaded = new Promise(function(resolve, reject){
+      if(window.jsQR) return resolve(window.jsQR);
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+      s.onload = function(){ resolve(window.jsQR); };
+      s.onerror = function(){ reject(new Error('No se pudo cargar el lector QR. Si estás offline, sincronizá primero.')); };
+      document.head.appendChild(s);
+    });
+    return jsQRLoaded;
+  }
+
+  async function abrirCamara(){
+    var video = document.getElementById('qr-video');
+    var openBtn = document.getElementById('open-cam-btn');
+    var closeBtn = document.getElementById('close-cam-btn');
+    try{
+      camStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
+      video.srcObject = camStream;
+      await video.play();
+      openBtn.classList.add('hide');
+      closeBtn.classList.remove('hide');
+
+      var useNative = ('BarcodeDetector' in window);
+      var detector = useNative ? new BarcodeDetector({ formats:['qr_code'] }) : null;
+      var jsQR = null;
+      var canvas = document.getElementById('qr-canvas');
+      var ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+      if(!useNative){
+        try{ jsQR = await loadJsQR(); }
+        catch(e){
+          showResult('error', e.message);
+          cerrarCamara();
+          return;
+        }
+      }
+
+      var scan = async function(){
+        if(!camStream) return;
+        if(camBusy){ requestAnimationFrame(scan); return; }
+        try{
+          var raw = '';
+          if(useNative){
+            var codes = await detector.detect(video);
+            if(codes && codes.length) raw = codes[0].rawValue || '';
+          } else if(jsQR && video.readyState === 4){
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            var code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts:'attemptBoth' });
+            if(code && code.data) raw = code.data;
+          }
+          if(raw){
+            var now = Date.now();
+            if(raw === camLastToken && (now - camLastTokenAt) < 2500){
+              requestAnimationFrame(scan); return;
+            }
+            camLastToken = raw; camLastTokenAt = now;
+            camBusy = true;
+            try{ await validarQR(raw); }
+            finally{ setTimeout(function(){ camBusy = false; }, 1200); }
+          }
+        }catch(e){}
+        requestAnimationFrame(scan);
+      };
+      requestAnimationFrame(scan);
+    }catch(e){
+      showResult('error', e.name === 'NotAllowedError' ? 'Permiso de cámara denegado. Activalo en la configuración del navegador.' : (e.message || 'No pudimos abrir la cámara.'));
+      openBtn.classList.remove('hide');
+      closeBtn.classList.add('hide');
+    }
+  }
+
+  function cerrarCamara(){
+    if(camStream){
+      camStream.getTracks().forEach(function(t){ t.stop(); });
+      camStream = null;
+    }
+    var v = document.getElementById('qr-video');
+    if(v){ v.pause(); v.srcObject = null; }
+    document.getElementById('open-cam-btn').classList.remove('hide');
+    document.getElementById('close-cam-btn').classList.add('hide');
+    camBusy = false; camLastToken = '';
+  }
+
+  function validarManual(){
+    var el = document.getElementById('manual-input');
+    var token = (el?.value || '').trim();
+    if(!token){ showResult('error', 'Pegá el código QR.'); return; }
+    validarQR(token);
+    if(el) el.value = '';
+  }
+
+  /* ============ INIT ============ */
+
+  function init(){
+    loadFromStorage();
+    updateStatusUI();
+    /* Service Worker */
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('/sw.js').catch(function(e){
+        console.warn('SW registro falló:', e.message);
+      });
+    }
+    /* Status online/offline */
+    window.addEventListener('online', function(){
+      updateStatusUI();
+      flushQueue();
+    });
+    window.addEventListener('offline', updateStatusUI);
+
+    /* Decidir sesión */
+    if(getToken() && getUser()){
+      showApp();
+    }
+  }
+
+  /* Expose for inline onclick handlers */
+  window.hacerLogin = hacerLogin;
+  window.cerrarSesion = cerrarSesion;
+  window.sincronizar = sincronizar;
+  window.abrirCamara = abrirCamara;
+  window.cerrarCamara = cerrarCamara;
+  window.validarManual = validarManual;
+
+  init();
+})();
+</script>
+</body>
+</html>
