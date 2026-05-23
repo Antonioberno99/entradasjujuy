@@ -1647,6 +1647,30 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
           <div class="mp-desc" id="mp-status-desc">Para vender entradas pagas, conecta la cuenta donde queres recibir el dinero.</div>
           <button class="bcta" id="mp-connect-btn" style="width:100%;height:42px" onclick="conectarMercadoPago()">Conectar Mercado Pago</button>
         </div>
+
+        <!-- ============= CARD QR PREPAGOS (Resumen) ============= -->
+        <div style="background:linear-gradient(135deg,#2a1408,#1a0c04);border:1px solid rgba(232,160,32,0.4);border-radius:var(--r);padding:16px;margin-top:12px;position:relative;overflow:hidden">
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
+            <div style="width:42px;height:42px;border-radius:10px;background:rgba(232,160,32,0.18);border:1px solid rgba(232,160,32,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8A020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="16" y="16" width="2" height="2" fill="#E8A020"/><rect x="19" y="16" width="2" height="2" fill="#E8A020"/><rect x="16" y="19" width="2" height="2" fill="#E8A020"/><rect x="19" y="19" width="2" height="2" fill="#E8A020"/></svg>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:9px;letter-spacing:1.8px;text-transform:uppercase;color:#E8A020;font-weight:700;margin-bottom:3px">QR Prepagos</div>
+              <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:900;color:#EAE0D0;line-height:1.15;margin-bottom:4px">Vendé por transferencia o efectivo</div>
+              <div style="font-size:12px;color:#9A8670;line-height:1.45">Comprá créditos QR a $200 cada uno. Cobrás afuera de la plataforma — tu comprador no paga el 12,60% de servicios.</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:rgba(232,160,32,0.06);border:1px solid rgba(232,160,32,0.18);border-radius:10px;margin-bottom:10px">
+            <div>
+              <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#9A8670;margin-bottom:2px">Tu saldo</div>
+              <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:900;color:#E8A020;line-height:1"><span id="qr-credits-balance-resumen">0</span> <span style="font-size:12px;color:#9A8670;font-weight:400">créditos</span></div>
+            </div>
+            <button onclick="abrirComprarCreditosModal()" style="background:linear-gradient(180deg,#E8A020,#C4692B);color:#0a0704;border:none;border-radius:10px;padding:0 18px;height:42px;font-size:13px;font-weight:800;cursor:pointer;font-family:Outfit,sans-serif;letter-spacing:.2px;flex-shrink:0">Comprar créditos</button>
+          </div>
+          <div style="font-size:11px;color:#7d6c52;line-height:1.5">
+            <strong style="color:#9A8670">¿Cómo funciona?</strong> Después de comprar, en cada evento aparece el botón <strong style="color:#E8A020">"Vender QR"</strong>. Lo usás cuando cobraste por afuera (transferencia/efectivo) para enviarle el QR a tu comprador como una entrada normal.
+          </div>
+        </div>
       </div>
       <div class="stat-grid">
         <div class="stat-c"><div class="stat-l">Entradas vendidas</div><div class="stat-v" id="org-stat-vendidas">0</div><div class="stat-s" id="org-stat-vendidas-sub">Sin ventas todavía</div></div>
@@ -2850,6 +2874,65 @@ function chipSel(el,cls){
   <div class="fg"><label class="fl">Mensaje personal <span style="color:var(--t3);font-weight:300">(opcional)</span></label><textarea class="fi-area" id="gift-mensaje" placeholder="Ej: ¡Te invito a mi peña! No faltes 🎵" maxlength="500" style="min-height:84px"></textarea><div style="font-size:11px;color:var(--t3);margin-top:4px">Máximo 500 caracteres.</div></div>
   <button class="btn-sub c" id="gift-submit" onclick="enviarEntradasRegalo(event)" style="margin-top:4px">Generar y enviar QR</button>
   <div class="publish-note" id="gift-note" style="margin-top:8px"></div>
+</div>
+
+<!-- ================================================================
+     MODAL COMPRAR CRÉDITOS QR (con explicación + formulario)
+     ================================================================ -->
+<div id="buy-credits-backdrop" onclick="cerrarComprarCreditosModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9995"></div>
+<div id="buy-credits-modal" role="dialog" aria-modal="true" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;padding:24px 20px max(24px,env(safe-area-inset-bottom));z-index:9996;max-width:500px;max-height:92vh;overflow-y:auto;margin:0 auto;box-shadow:0 -8px 40px rgba(0,0,0,0.2);transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.2,0.64,1);border-top:1px solid var(--b1)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:var(--t1)">Comprar créditos QR</div>
+    <button onclick="cerrarComprarCreditosModal()" style="background:none;border:none;font-size:22px;color:var(--t3);cursor:pointer;padding:4px 8px;line-height:1">✕</button>
+  </div>
+
+  <!-- Explicación -->
+  <div style="font-size:13px;color:var(--t2);line-height:1.6;margin-bottom:14px">
+    Comprás créditos por adelantado y los usás para emitir QRs cuando vendés <strong style="color:var(--t1)">por afuera de la plataforma</strong> (transferencia bancaria, efectivo, etc).
+  </div>
+
+  <!-- Beneficios -->
+  <div style="background:rgba(196,105,43,.05);border:1px solid rgba(196,105,43,.18);border-radius:10px;padding:12px;margin-bottom:14px">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t);margin-bottom:8px;font-weight:700">¿Por qué te conviene?</div>
+    <div style="font-size:12px;color:var(--t2);line-height:1.65">
+      ✓ Tu comprador <strong>no paga el 12,60%</strong> de servicios EntradasJujuy + Mercado Pago<br>
+      ✓ Cobrás directo al bolsillo — sin esperar acreditación de MP<br>
+      ✓ Ideal para clientes que prefieren no usar Mercado Pago<br>
+      ✓ Los créditos no vencen — los usás cuando quieras<br>
+      ✓ Sirven para cualquier evento o tipo de entrada tuyo
+    </div>
+  </div>
+
+  <!-- Ejemplo -->
+  <div style="background:rgba(255,255,255,.02);border:1px solid var(--b1);border-radius:10px;padding:12px;margin-bottom:14px">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:6px;font-weight:600">Ejemplo</div>
+    <div style="font-size:12px;color:var(--t2);line-height:1.6">
+      Tu entrada cuesta <strong>$5.000</strong>.<br>
+      • Por MP: el comprador paga $5.630 (con servicios)<br>
+      • Por transferencia: el comprador te paga $5.000 directo y vos usás 1 crédito ($200) para emitirle el QR. <strong style="color:var(--g)">Le ahorrás $430 al comprador.</strong>
+    </div>
+  </div>
+
+  <!-- Calculadora -->
+  <div class="fg-row" style="margin-bottom:8px">
+    <div class="fg" style="margin:0">
+      <label class="fl">Cantidad de créditos</label>
+      <input class="fi" id="buy-credits-cantidad" type="number" min="1" max="500" value="10" oninput="actualizarTotalComprarModal()">
+      <div style="font-size:10px;color:var(--t3);margin-top:4px">Mínimo 1 · Máximo 500 por compra</div>
+    </div>
+    <div class="fg" style="margin:0">
+      <label class="fl">Total a pagar</label>
+      <input class="fi" id="buy-credits-total" type="text" value="$2.000" readonly style="font-weight:800;color:var(--t);font-size:16px">
+      <div style="font-size:10px;color:var(--t3);margin-top:4px">$200 por crédito</div>
+    </div>
+  </div>
+
+  <button class="btn-sub c" id="buy-credits-submit" onclick="confirmarCompraQrCredits()" style="margin-top:10px;height:48px">Pagar con Mercado Pago</button>
+  <div id="buy-credits-msg" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:12px;line-height:1.45"></div>
+
+  <div style="font-size:11px;color:var(--t3);text-align:center;margin-top:12px;line-height:1.5">
+    Te redirigimos a Mercado Pago para completar el pago.<br>Cuando vuelvas, tu saldo se actualiza automáticamente.
+  </div>
 </div>
 
 <!-- ================================================================
@@ -5430,13 +5513,72 @@ async function cargarQrCreditsStatus(){
     if(!r.ok || !d.ok) return;
     _qrCreditsBalance = Number(d.data.balance || 0);
     QR_CREDIT_PRICE_FRONT = Number(d.data.precio_unitario || 200);
-    var balEl = document.getElementById('qr-credits-balance');
-    if(balEl) balEl.textContent = String(_qrCreditsBalance);
-    var balSell = document.getElementById('sell-modal-balance');
-    if(balSell) balSell.textContent = String(_qrCreditsBalance);
+    /* Actualizar saldo en todos los lugares donde aparece */
+    ['qr-credits-balance', 'qr-credits-balance-resumen', 'sell-modal-balance'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.textContent = String(_qrCreditsBalance);
+    });
     actualizarTotalQrCredits();
+    actualizarTotalComprarModal();
     renderQrCreditsLog(d.data.log || []);
   }catch(e){ /* silencioso */ }
+}
+
+/* ===== Modal Comprar créditos QR (Resumen) ===== */
+
+function abrirComprarCreditosModal(){
+  if(!requireAccount('Necesitas iniciar sesión.')) return;
+  var m = document.getElementById('buy-credits-modal');
+  var b = document.getElementById('buy-credits-backdrop');
+  var msg = document.getElementById('buy-credits-msg');
+  if(msg) msg.style.display = 'none';
+  if(m){ m.style.display = 'block'; setTimeout(function(){ m.style.transform = 'translateY(0)'; }, 10); }
+  if(b) b.style.display = 'block';
+  actualizarTotalComprarModal();
+}
+
+function cerrarComprarCreditosModal(){
+  var m = document.getElementById('buy-credits-modal');
+  var b = document.getElementById('buy-credits-backdrop');
+  if(m){ m.style.transform = 'translateY(100%)'; setTimeout(function(){ m.style.display = 'none'; }, 350); }
+  if(b) b.style.display = 'none';
+}
+
+function actualizarTotalComprarModal(){
+  var input = document.getElementById('buy-credits-cantidad');
+  var totalEl = document.getElementById('buy-credits-total');
+  if(!input || !totalEl) return;
+  var n = parseInt(input.value || '0', 10) || 0;
+  if(n < 1) n = 1;
+  if(n > 500) n = 500;
+  if(input.value !== String(n)) input.value = String(n);
+  var total = n * QR_CREDIT_PRICE_FRONT;
+  totalEl.value = '$' + total.toLocaleString('es-AR');
+}
+
+async function confirmarCompraQrCredits(){
+  var input = document.getElementById('buy-credits-cantidad');
+  var btn = document.getElementById('buy-credits-submit');
+  var msg = document.getElementById('buy-credits-msg');
+  var cantidad = parseInt(input?.value || '0', 10) || 0;
+  if(cantidad < 1 || cantidad > 500){
+    if(msg){ msg.style.display = 'block'; msg.style.background = 'rgba(196,64,64,.08)'; msg.style.color = '#C44040'; msg.textContent = 'Cantidad inválida (entre 1 y 500).'; }
+    return;
+  }
+  if(btn){ btn.disabled = true; btn.textContent = 'Generando link de pago...'; }
+  if(msg){ msg.style.display = 'none'; }
+  try{
+    var r = await fetch(BACKEND + '/api/organizador/qr-credits/comprar', {
+      method:'POST', headers: apiHeaders(),
+      body: JSON.stringify({ cantidad: cantidad })
+    });
+    var d = await r.json();
+    if(!r.ok || !d.ok || !d.data?.init_point) throw new Error(d.error || 'No se pudo iniciar el pago.');
+    window.location.href = d.data.init_point;
+  }catch(e){
+    if(msg){ msg.style.display = 'block'; msg.style.background = 'rgba(196,64,64,.08)'; msg.style.color = '#C44040'; msg.textContent = e.message || 'No pudimos iniciar el pago.'; }
+    if(btn){ btn.disabled = false; btn.textContent = 'Pagar con Mercado Pago'; }
+  }
 }
 
 function renderQrCreditsLog(log){
