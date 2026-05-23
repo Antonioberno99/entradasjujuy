@@ -2204,6 +2204,109 @@ app.post('/api/organizador/qr-credits/usar', giftLimiter, requireAuth, async (re
   }
 });
 
+/* ============================================================
+   ESCÁNER OFFLINE — La PWA del organizador descarga la lista de
+   entradas válidas (de eventos próximos) para validar sin conexión.
+   Cuando vuelve la red, sube las que se usaron offline.
+   ============================================================ */
+
+/* Descarga el listado de entradas para los eventos del organizador
+   con fecha en los próximos 30 días. Incluye estado actual para que
+   el escáner sepa cuáles ya están usadas. */
+app.get('/api/organizador/entradas-offline', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await db.query(`
+      SELECT en.id, en.estado, en.token_qr,
+             te.id AS tipo_id, te.nombre AS tipo, te.hora_limite,
+             ev.id AS evento_id, ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar,
+             o.comprador_nombre, o.comprador_dni
+      FROM entradas en
+      JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
+      JOIN eventos ev ON ev.id = te.evento_id
+      JOIN ordenes o ON o.id = en.orden_id
+      WHERE ev.organizador_id = $1
+        AND ev.activo = true
+        AND ev.fecha >= CURRENT_DATE
+        AND ev.fecha <= CURRENT_DATE + INTERVAL '30 days'
+        AND o.estado IN ('pagada', 'cortesia')
+      ORDER BY ev.fecha ASC, ev.hora ASC, en.id ASC
+      LIMIT 10000
+    `, [req.user.id]);
+    res.json({
+      ok: true,
+      data: {
+        sync_at: new Date().toISOString(),
+        count: rows.length,
+        entradas: rows,
+      },
+    });
+  } catch (err) {
+    console.error('[ENTRADAS_OFFLINE]', err.message);
+    res.status(500).json({ ok: false, error: 'No pudimos descargar las entradas.' });
+  }
+});
+
+/* Sube las validaciones hechas offline. Body: { validaciones: [{entrada_id, validated_at}] }
+   Devuelve por cada ID el estado final (usada / ya_usada / inválida). Idempotente:
+   si el ID ya fue marcado usado, devuelve 'ya_usada'. */
+app.post('/api/organizador/validar-qr-bulk', requireAuth, async (req, res) => {
+  const validaciones = Array.isArray(req.body?.validaciones) ? req.body.validaciones : [];
+  if (!validaciones.length) return res.json({ ok: true, data: { resultados: [] } });
+  if (validaciones.length > 500) {
+    return res.status(400).json({ ok: false, error: 'Máximo 500 validaciones por request.' });
+  }
+  try {
+    const resultados = [];
+    for (const v of validaciones) {
+      const entradaId = String(v?.entrada_id || '').trim();
+      const validatedAt = String(v?.validated_at || '').trim();
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entradaId)) {
+        resultados.push({ entrada_id: entradaId, estado: 'invalida', motivo: 'ID inválido' });
+        continue;
+      }
+      /* Verificar ownership: solo entradas de eventos de este organizador */
+      const { rows: chk } = await db.query(`
+        SELECT en.id, en.estado, en.fecha_uso, ev.organizador_id
+        FROM entradas en
+        JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
+        JOIN eventos ev ON ev.id = te.evento_id
+        WHERE en.id = $1
+      `, [entradaId]);
+      if (!chk.length) {
+        resultados.push({ entrada_id: entradaId, estado: 'no_encontrada' });
+        continue;
+      }
+      if (req.user.rol !== 'admin' && String(chk[0].organizador_id) !== String(req.user.id)) {
+        resultados.push({ entrada_id: entradaId, estado: 'sin_permiso' });
+        continue;
+      }
+      if (chk[0].estado === 'usada') {
+        resultados.push({ entrada_id: entradaId, estado: 'ya_usada', usada_el: chk[0].fecha_uso });
+        continue;
+      }
+      if (chk[0].estado === 'cancelada') {
+        resultados.push({ entrada_id: entradaId, estado: 'cancelada' });
+        continue;
+      }
+      /* Marcar atómico — fecha_uso de la validación local cuando esté disponible */
+      const fechaUso = (validatedAt && !isNaN(new Date(validatedAt).getTime())) ? new Date(validatedAt) : new Date();
+      const upd = await db.query(
+        "UPDATE entradas SET estado='usada', fecha_uso=$2 WHERE id=$1 AND estado='valida' RETURNING fecha_uso",
+        [entradaId, fechaUso]
+      );
+      if (!upd.rows.length) {
+        resultados.push({ entrada_id: entradaId, estado: 'ya_usada' });
+      } else {
+        resultados.push({ entrada_id: entradaId, estado: 'usada', usada_el: upd.rows[0].fecha_uso });
+      }
+    }
+    res.json({ ok: true, data: { resultados } });
+  } catch (err) {
+    console.error('[VALIDAR_QR_BULK]', err.message);
+    res.status(500).json({ ok: false, error: 'No pudimos sincronizar las validaciones.' });
+  }
+});
+
 app.get('/api/artistas', async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM artistas WHERE activo = true ORDER BY created_at DESC');

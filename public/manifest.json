@@ -1,0 +1,34 @@
+{
+  "name": "EntradasJujuy Scanner",
+  "short_name": "EJ Scanner",
+  "description": "Escáner de QR para organizadores de EntradasJujuy. Funciona sin conexión.",
+  "start_url": "/escaner.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0704",
+  "theme_color": "#C4692B",
+  "lang": "es-AR",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "192x192 512x512 1024x1024",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Abrir escáner",
+      "url": "/escaner.html",
+      "description": "Validar entradas con QR"
+    }
+  ]
+}

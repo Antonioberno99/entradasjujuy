@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable: contenido importante dentro del círculo seguro (radio ~40% del lado) -->
+  <rect width="512" height="512" fill="#C4692B"/>
+  <g fill="#0a0704">
+    <!-- Esquinas del QR centradas dentro de la zona segura -->
+    <rect x="160" y="160" width="64" height="64" rx="8"/>
+    <rect x="288" y="160" width="64" height="64" rx="8"/>
+    <rect x="160" y="288" width="64" height="64" rx="8"/>
+  </g>
+  <g fill="#C4692B">
+    <rect x="176" y="176" width="32" height="32" rx="3"/>
+    <rect x="304" y="176" width="32" height="32" rx="3"/>
+    <rect x="176" y="304" width="32" height="32" rx="3"/>
+  </g>
+  <g fill="#0a0704">
+    <rect x="184" y="184" width="16" height="16"/>
+    <rect x="312" y="184" width="16" height="16"/>
+    <rect x="184" y="312" width="16" height="16"/>
+    <!-- Píxeles del QR -->
+    <rect x="240" y="240" width="20" height="20"/>
+    <rect x="268" y="240" width="20" height="20"/>
+    <rect x="240" y="268" width="20" height="20"/>
+    <rect x="296" y="268" width="20" height="20"/>
+    <rect x="268" y="296" width="20" height="20"/>
+    <rect x="240" y="324" width="20" height="20"/>
+    <rect x="296" y="324" width="20" height="20"/>
+    <rect x="324" y="296" width="20" height="20"/>
+  </g>
+</svg>
