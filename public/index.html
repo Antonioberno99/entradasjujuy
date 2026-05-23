@@ -1886,8 +1886,10 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
       <div class="fsec">
         <h2>Validar entradas</h2><p class="fsec-desc">Escaneá el QR en la puerta o pegá el código si la cámara no está disponible.</p>
         <div style="width:68px;height:68px;border-radius:10px;background:var(--bg2);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;margin:0 0 20px"><svg width="32" height="32" viewBox="0 0 32 32"><rect x="4" y="4" width="10" height="10" rx="1" fill="none" stroke="var(--c)" stroke-width="1.5"/><rect x="18" y="4" width="10" height="10" rx="1" fill="none" stroke="var(--c)" stroke-width="1.5"/><rect x="4" y="18" width="10" height="10" rx="1" fill="none" stroke="var(--c)" stroke-width="1.5"/><rect x="18" y="18" width="4" height="4" rx=".5" fill="var(--c)" opacity=".6"/><rect x="24" y="18" width="4" height="4" rx=".5" fill="var(--c)" opacity=".4"/><rect x="18" y="24" width="4" height="4" rx=".5" fill="var(--c)" opacity=".4"/><rect x="24" y="24" width="4" height="4" rx=".5" fill="var(--c)" opacity=".6"/></svg></div>
-        <video id="qr-video" playsinline muted style="display:none;width:100%;max-height:320px;background:#000;border:1px solid var(--b1);border-radius:var(--r);object-fit:cover;margin-bottom:12px"></video>
-        <button class="btn-sub c" style="margin-bottom:12px" onclick="iniciarEscanerQR()">Abrir escáner QR</button>
+        <video id="qr-video" playsinline webkit-playsinline muted style="display:none;width:100%;max-height:320px;background:#000;border:1px solid var(--b1);border-radius:var(--r);object-fit:cover;margin-bottom:12px"></video>
+        <canvas id="qr-canvas" style="display:none"></canvas>
+        <button id="qr-open-btn" class="btn-sub c" style="margin-bottom:12px" onclick="iniciarEscanerQR()">Abrir escáner QR</button>
+        <button id="qr-close-btn" style="display:none;margin-bottom:12px;width:100%;height:46px;background:#C44040;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:Outfit,sans-serif" onclick="detenerEscanerQR(true)">Cerrar cámara</button>
         <textarea id="qr-token-input" class="fi" placeholder="Pegar código QR manualmente" style="height:86px;margin-bottom:10px;resize:vertical"></textarea>
         <button class="btn-sec" style="margin-bottom:14px" onclick="validarQrManual()">Validar código</button>
         <div id="qr-resultado" role="status" aria-live="polite" style="display:none;border-radius:var(--r);padding:14px;margin-bottom:14px;font-size:13px;line-height:1.45"></div>
@@ -2441,12 +2443,65 @@ async function reenviarTicketsOrden(){
   }
 }
 
+/* === LECTOR QR ROBUSTO ===
+   - BarcodeDetector nativo en Chrome/Edge (Android/Desktop)
+   - Fallback a jsQR (CDN) cargado dinámicamente para iOS Safari
+   - Escaneo CONTINUO (sigue leyendo tras validar — útil para cola en puerta)
+   - Beep de feedback diferente para válido/inválido/ya-usado
+   - Vibración en mobile
+   - Cooldown de 2s tras un escaneo para evitar duplicados del mismo QR
+   - Historial persiste en localStorage */
+
 var qrScannerStream = null;
 var qrScannerBusy = false;
+var qrScannerLastToken = '';
+var qrScannerLastTokenAt = 0;
+var qrJsQrLoaded = null; /* Promise — null hasta primer intento */
+
+function loadJsQR(){
+  if(qrJsQrLoaded) return qrJsQrLoaded;
+  qrJsQrLoaded = new Promise(function(resolve, reject){
+    if(window.jsQR) return resolve(window.jsQR);
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+    s.crossOrigin = 'anonymous';
+    s.onload = function(){ resolve(window.jsQR); };
+    s.onerror = function(){ reject(new Error('No se pudo cargar el lector QR. Verificá tu conexión.')); };
+    document.head.appendChild(s);
+  });
+  return qrJsQrLoaded;
+}
+
+/* Audio feedback corto vía WebAudio (sin necesidad de archivos) */
+function qrBeep(tipo){
+  try{
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    /* Frecuencia según tipo: éxito agudo doble, error grave */
+    if(tipo === 'ok'){ osc.frequency.value = 880; }
+    else if(tipo === 'used'){ osc.frequency.value = 420; }
+    else { osc.frequency.value = 220; }
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.26);
+  }catch(e){ /* algunos browsers requieren gesture previo — silencioso */ }
+  /* Vibración en móvil — válido: 1 pulso corto; error: 3 pulsos */
+  try{
+    if(navigator.vibrate){
+      if(tipo === 'ok') navigator.vibrate(80);
+      else navigator.vibrate([60, 60, 60, 60, 60]);
+    }
+  }catch(e){}
+}
 
 async function iniciarEscanerQR(){
   var result = document.getElementById('qr-resultado');
   var video = document.getElementById('qr-video');
+  var openBtn = document.getElementById('qr-open-btn');
+  var closeBtn = document.getElementById('qr-close-btn');
   if(result){
     result.style.display = 'block';
     result.style.background = 'rgba(196,105,43,.08)';
@@ -2455,23 +2510,68 @@ async function iniciarEscanerQR(){
     result.textContent = 'Abriendo cámara...';
   }
   try{
-    if(!('BarcodeDetector' in window)) throw new Error('Este navegador no soporta lectura QR automática. Pegá el código manualmente.');
-    var detector = new BarcodeDetector({ formats:['qr_code'] });
-    qrScannerStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
+    qrScannerStream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:'environment' },
+      audio: false
+    });
     video.srcObject = qrScannerStream;
     video.style.display = 'block';
     await video.play();
-    if(result) result.textContent = 'Apuntá la cámara al QR de la entrada.';
+    if(openBtn) openBtn.style.display = 'none';
+    if(closeBtn) closeBtn.style.display = 'block';
+    if(result) result.textContent = 'Apuntá la cámara al QR. Escanea continuo — no necesitás reabrir.';
+
+    /* Estrategia: BarcodeDetector nativo si existe; sino jsQR */
+    var useNative = ('BarcodeDetector' in window);
+    var detector = useNative ? new BarcodeDetector({ formats:['qr_code'] }) : null;
+    var jsQR = null;
+    var canvas = document.getElementById('qr-canvas');
+    var ctx = canvas ? canvas.getContext('2d', { willReadFrequently: true }) : null;
+
+    if(!useNative){
+      try { jsQR = await loadJsQR(); }
+      catch(e){
+        if(result){
+          result.style.background = 'rgba(196,64,64,.08)';
+          result.style.color = '#C44040';
+          result.textContent = e.message;
+        }
+        detenerEscanerQR(true);
+        return;
+      }
+    }
+
     var scan = async function(){
       if(!qrScannerStream) return;
+      if(qrScannerBusy){ requestAnimationFrame(scan); return; }
       try{
-        var codes = await detector.detect(video);
-        if(codes && codes.length && codes[0].rawValue && !qrScannerBusy){
+        var raw = '';
+        if(useNative){
+          var codes = await detector.detect(video);
+          if(codes && codes.length) raw = codes[0].rawValue || '';
+        } else if(jsQR && video.readyState === 4){
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          var code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
+          if(code && code.data) raw = code.data;
+        }
+        if(raw){
+          /* Cooldown: si el mismo token se vuelve a leer en <2s, ignorar
+             (la cámara captura el mismo QR muchas veces por segundo) */
+          var now = Date.now();
+          if(raw === qrScannerLastToken && (now - qrScannerLastTokenAt) < 2500){
+            requestAnimationFrame(scan); return;
+          }
+          qrScannerLastToken = raw;
+          qrScannerLastTokenAt = now;
           qrScannerBusy = true;
-          await validarQrToken(codes[0].rawValue);
-          detenerEscanerQR();
-          qrScannerBusy = false;
-          return;
+          try{ await validarQrToken(raw); }
+          finally{
+            /* Esperar 1.2s antes de aceptar el próximo QR — da tiempo a leer el resultado */
+            setTimeout(function(){ qrScannerBusy = false; }, 1200);
+          }
         }
       }catch(e){}
       requestAnimationFrame(scan);
@@ -2482,25 +2582,42 @@ async function iniciarEscanerQR(){
       result.style.background = 'rgba(196,64,64,.08)';
       result.style.border = '1px solid rgba(196,64,64,.25)';
       result.style.color = '#C44040';
-      result.textContent = e.message || 'No pudimos abrir la cámara. Pegá el código manualmente.';
+      result.textContent = (e && e.name === 'NotAllowedError')
+        ? 'Permiso de cámara denegado. Activalo en la configuración del navegador o pegá el código manualmente.'
+        : (e.message || 'No pudimos abrir la cámara. Pegá el código manualmente.');
     }
+    if(openBtn) openBtn.style.display = 'block';
+    if(closeBtn) closeBtn.style.display = 'none';
   }
 }
 
-function detenerEscanerQR(){
+function detenerEscanerQR(manual){
   if(qrScannerStream){
     qrScannerStream.getTracks().forEach(function(track){ track.stop(); });
     qrScannerStream = null;
   }
   var video = document.getElementById('qr-video');
   if(video){ video.pause(); video.srcObject = null; video.style.display = 'none'; }
+  var openBtn = document.getElementById('qr-open-btn');
+  var closeBtn = document.getElementById('qr-close-btn');
+  if(openBtn) openBtn.style.display = 'block';
+  if(closeBtn) closeBtn.style.display = 'none';
+  qrScannerBusy = false;
+  qrScannerLastToken = '';
+  if(manual){
+    var result = document.getElementById('qr-resultado');
+    if(result && result.textContent.indexOf('Apuntá') === 0){
+      result.style.display = 'none';
+    }
+  }
 }
 
 function validarQrManual(){
   var input = document.getElementById('qr-token-input');
   var token = input ? input.value.trim() : '';
-  if(!token) return mostrarResultadoQr(false, 'Pegá el código QR para validar.');
+  if(!token) return mostrarResultadoQr('error', 'Pegá el código QR para validar.');
   validarQrToken(token);
+  if(input) input.value = '';
 }
 
 async function validarQrToken(token){
@@ -2511,34 +2628,71 @@ async function validarQrToken(token){
       body:JSON.stringify({ token: token })
     });
     var d = await r.json();
-    if(d.valida) mostrarResultadoQr(true, 'Entrada válida. Acceso habilitado.', d.entrada);
-    else mostrarResultadoQr(false, d.motivo || d.error || 'Entrada no válida.', d.entrada);
+    if(d.valida){
+      mostrarResultadoQr('ok', 'Entrada válida. Acceso habilitado.', d.entrada);
+    } else {
+      /* Distinguir "ya usada" (caso esperado, no fraude) de QR inválido/falsificado */
+      var motivo = String(d.motivo || d.error || 'Entrada no válida.');
+      var esYaUsada = /ya utilizada|ya fue usada|ya entró/i.test(motivo);
+      mostrarResultadoQr(esYaUsada ? 'used' : 'error', motivo, d.entrada);
+    }
   }catch(e){
-    mostrarResultadoQr(false, 'No pudimos validar contra el servidor.');
+    mostrarResultadoQr('error', 'No pudimos validar contra el servidor. Revisá tu conexión.');
   }
 }
 
-function mostrarResultadoQr(ok, mensaje, entrada){
+/* tipo: 'ok' | 'used' | 'error' */
+function mostrarResultadoQr(tipo, mensaje, entrada){
+  /* Compat con versión vieja booleana */
+  if(tipo === true) tipo = 'ok';
+  else if(tipo === false) tipo = 'error';
+  qrBeep(tipo);
+  var colors = {
+    ok:    { bg:'rgba(61,170,106,.12)', bd:'rgba(61,170,106,.35)', fg:'var(--g)',  cBg:'rgba(61,170,106,.16)', cBd:'rgba(61,170,106,.55)', icon:'&#10003;', title:'Entrada válida' },
+    used:  { bg:'rgba(232,160,32,.12)', bd:'rgba(232,160,32,.40)', fg:'#E8A020', cBg:'rgba(232,160,32,.16)', cBd:'rgba(232,160,32,.55)', icon:'!',       title:'Ya utilizada' },
+    error: { bg:'rgba(196,64,64,.09)',  bd:'rgba(196,64,64,.28)',  fg:'#C44040', cBg:'rgba(196,64,64,.13)',  cBd:'rgba(196,64,64,.48)',  icon:'&#215;',   title:'Acceso denegado' }
+  };
+  var c = colors[tipo] || colors.error;
   var box = document.getElementById('qr-resultado');
   if(box){
-    var circle = '<div style="width:74px;height:74px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:900;background:'+(ok ? 'rgba(61,170,106,.16)' : 'rgba(196,64,64,.13)')+';border:2px solid '+(ok ? 'rgba(61,170,106,.55)' : 'rgba(196,64,64,.48)')+';color:'+(ok ? 'var(--g)' : '#C44040')+'">'+(ok ? '&#10003;' : '&#215;')+'</div>';
-    var title = '<div style="text-align:center;font-family:Fraunces,serif;font-size:22px;font-weight:900;color:'+(ok ? 'var(--g)' : '#C44040')+';margin-bottom:6px">'+(ok ? 'Entrada valida' : 'Acceso denegado')+'</div>';
+    var circle = '<div style="width:74px;height:74px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:900;background:'+c.cBg+';border:2px solid '+c.cBd+';color:'+c.fg+'">'+c.icon+'</div>';
+    var title = '<div style="text-align:center;font-family:Fraunces,serif;font-size:22px;font-weight:900;color:'+c.fg+';margin-bottom:6px">'+c.title+'</div>';
     var detail = '<div style="text-align:center;color:var(--t2);font-size:13px;line-height:1.45">'+escapeHtml(mensaje)+'</div>';
-    var meta = entrada ? '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--b1);color:var(--t2);font-size:12px;line-height:1.5">'+escapeHtml([entrada.evento, entrada.tipo, entrada.comprador_nombre, entrada.comprador_dni].filter(Boolean).join(' - '))+'</div>' : '';
+    var meta = entrada ? '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--b1);color:var(--t2);font-size:12px;line-height:1.5;text-align:center">'+escapeHtml([entrada.evento, entrada.tipo, entrada.comprador_nombre, entrada.comprador_dni].filter(Boolean).join(' · '))+'</div>' : '';
     box.style.display = 'block';
-    box.style.background = ok ? 'rgba(61,170,106,.12)' : 'rgba(196,64,64,.09)';
-    box.style.border = ok ? '1px solid rgba(61,170,106,.35)' : '1px solid rgba(196,64,64,.28)';
-    box.style.color = ok ? 'var(--g)' : '#C44040';
+    box.style.background = c.bg;
+    box.style.border = '1px solid '+c.bd;
+    box.style.color = c.fg;
     box.innerHTML = circle + title + detail + meta;
   }
+  /* Historial — guardar últimas 30 validaciones en localStorage */
+  try{
+    var entry = { at: Date.now(), tipo: tipo, mensaje: mensaje, evento: entrada?.evento || '', tipoTk: entrada?.tipo || '' };
+    var hist = [];
+    try{ hist = JSON.parse(localStorage.getItem('ej-qr-hist') || '[]') || []; }catch(e){}
+    hist.unshift(entry);
+    hist = hist.slice(0, 30);
+    localStorage.setItem('ej-qr-hist', JSON.stringify(hist));
+  }catch(e){}
+  renderQrHistorial();
+}
+
+function renderQrHistorial(){
   var hist = document.getElementById('qr-historial');
-  if(hist){
-    var line = document.createElement('div');
-    line.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--b1);color:'+(ok ? 'var(--g)' : '#C44040');
-    line.textContent = (new Date()).toLocaleTimeString('es-AR') + ' - ' + mensaje;
-    if(hist.textContent.indexOf('Sin entradas') >= 0) hist.innerHTML = '';
-    hist.prepend(line);
-  }
+  if(!hist) return;
+  var entries = [];
+  try{ entries = JSON.parse(localStorage.getItem('ej-qr-hist') || '[]') || []; }catch(e){}
+  if(!entries.length){ hist.textContent = 'Sin entradas validadas todavía.'; return; }
+  hist.innerHTML = entries.slice(0, 10).map(function(e){
+    var color = e.tipo === 'ok' ? 'var(--g)' : (e.tipo === 'used' ? '#E8A020' : '#C44040');
+    var hora = (new Date(e.at)).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    return '<div style="padding:6px 0;border-bottom:1px solid var(--b1);color:'+color+';font-size:12px">'+hora+' · '+escapeHtml(e.mensaje || '')+(e.evento ? ' <span style="color:var(--t3)">('+escapeHtml(e.evento)+')</span>' : '')+'</div>';
+  }).join('');
+}
+
+/* Renderizar historial al cargar la página por si el portero recargó */
+if(typeof window !== 'undefined'){
+  window.addEventListener('DOMContentLoaded', function(){ try{ renderQrHistorial(); }catch(e){} });
 }
 
 async function iniciarPago(){

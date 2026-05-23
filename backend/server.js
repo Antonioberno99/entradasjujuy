@@ -1867,10 +1867,24 @@ app.post('/api/organizador/entradas-regalo', giftLimiter, requireAuth, async (re
       [ordenId, tipo.id, cantidad]
     );
 
+    /* Expiración del JWT atada a la fecha del evento + 1 día (igual que compras).
+       Si el JWT_SECRET se filtra a futuro, los QRs viejos no son re-utilizables. */
+    const expiraEnSegundos = (() => {
+      try {
+        const fechaEv = new Date(tipo.fecha);
+        fechaEv.setDate(fechaEv.getDate() + 1);
+        const segs = Math.floor((fechaEv.getTime() - Date.now()) / 1000);
+        return segs > 0 ? segs : 60 * 60 * 24 * 90;
+      } catch { return 60 * 60 * 24 * 90; }
+    })();
     const entradas = [];
     for (let i = 0; i < cantidad; i++) {
       const entradaId = uuid();
-      const token = jwt.sign({ type: 'ticket', entrada_id: entradaId, orden_id: ordenId, evento_id: eventoId }, jwtSecret);
+      const token = jwt.sign(
+        { type: 'ticket', entrada_id: entradaId, orden_id: ordenId, evento_id: eventoId },
+        jwtSecret,
+        { expiresIn: expiraEnSegundos }
+      );
       await client.query(
         `INSERT INTO entradas (id, orden_id, tipo_entrada_id, token_qr, estado, numero)
          VALUES ($1,$2,$3,$4,'valida',$5)`,
