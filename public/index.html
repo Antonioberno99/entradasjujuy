@@ -7,6 +7,11 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<!-- PWA: manifest + Apple touch icon para que el escáner sea instalable -->
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="EJ Scanner">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <title>EntradasJujuy - Entradas, eventos y cultura de Jujuy</title>
@@ -1646,6 +1651,25 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
           <div class="mp-title" id="mp-status-title">Mercado Pago no conectado</div>
           <div class="mp-desc" id="mp-status-desc">Para vender entradas pagas, conecta la cuenta donde queres recibir el dinero.</div>
           <button class="bcta" id="mp-connect-btn" style="width:100%;height:42px" onclick="conectarMercadoPago()">Conectar Mercado Pago</button>
+        </div>
+
+        <!-- ============= CARD APP ESCÁNER (PWA) ============= -->
+        <div style="background:linear-gradient(135deg,#08200a,#04140a);border:1px solid rgba(61,170,106,0.35);border-radius:var(--r);padding:16px;margin-top:12px">
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
+            <div style="width:42px;height:42px;border-radius:10px;background:rgba(61,170,106,0.18);border:1px solid rgba(61,170,106,0.40);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3DAA6A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="6" height="6" rx="1"/><rect x="16" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><line x1="10" y1="2" x2="14" y2="2"/><line x1="10" y1="22" x2="14" y2="22"/><line x1="2" y1="10" x2="2" y2="14"/><line x1="22" y1="10" x2="22" y2="14"/><line x1="12" y1="11" x2="12" y2="13"/></svg>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:9px;letter-spacing:1.8px;text-transform:uppercase;color:#3DAA6A;font-weight:700;margin-bottom:3px">App Escáner</div>
+              <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:900;color:#EAE0D0;line-height:1.15;margin-bottom:4px">Validá QRs sin internet</div>
+              <div style="font-size:12px;color:#9A8670;line-height:1.45">Instalá la app en tu celular para escanear entradas en la puerta del evento. Funciona <strong style="color:#3DAA6A">sin wifi y sin datos</strong>.</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button onclick="instalarOAbrirApp()" id="install-pwa-btn" style="background:linear-gradient(180deg,#3DAA6A,#2a8a51);color:#fff;border:none;border-radius:10px;padding:0 18px;height:44px;font-size:13px;font-weight:800;cursor:pointer;font-family:Outfit,sans-serif;letter-spacing:.2px">📲 Instalar app</button>
+            <button onclick="window.open('/escaner.html', '_blank')" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--t1);border-radius:10px;height:38px;font-size:12px;font-weight:600;cursor:pointer;font-family:Outfit,sans-serif">Abrir escáner en navegador</button>
+          </div>
+          <div id="pwa-install-hint" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:11px;color:var(--t2);line-height:1.5"></div>
         </div>
 
         <!-- ============= CARD QR PREPAGOS (Resumen) ============= -->
@@ -5485,6 +5509,84 @@ function formatearFecha(d){
   if(m) return m[3] + '/' + m[2] + '/' + m[1];
   return s;
 }
+
+/* ============================================================
+   APP ESCÁNER PWA — instalación / install prompt
+   ============================================================ */
+
+var _deferredInstallPrompt = null;
+
+/* Chrome / Edge / Android: captura el beforeinstallprompt antes de
+   que el browser muestre el banner default. Lo guardamos para usar
+   cuando el organizador toque "Instalar app". */
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  _deferredInstallPrompt = e;
+  var btn = document.getElementById('install-pwa-btn');
+  if(btn){
+    btn.textContent = '📲 Instalar app';
+    btn.disabled = false;
+  }
+});
+
+function isStandaloneApp(){
+  return window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ||
+         window.navigator.standalone === true;
+}
+
+function isIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+async function instalarOAbrirApp(){
+  /* Si ya está instalada como app standalone → abrir directo el escáner */
+  if(isStandaloneApp()){
+    window.location.href = '/escaner.html';
+    return;
+  }
+  /* Si Chrome/Android capturó el prompt → usarlo */
+  if(_deferredInstallPrompt){
+    try{
+      _deferredInstallPrompt.prompt();
+      var choice = await _deferredInstallPrompt.userChoice;
+      _deferredInstallPrompt = null;
+      if(choice.outcome === 'accepted'){
+        var hint = document.getElementById('pwa-install-hint');
+        if(hint){
+          hint.style.display = 'block';
+          hint.style.background = 'rgba(61,170,106,.08)';
+          hint.style.borderColor = 'rgba(61,170,106,.30)';
+          hint.style.color = '#3DAA6A';
+          hint.innerHTML = '✓ App instalada. Buscala en tu pantalla principal con el nombre <strong>EJ Scanner</strong>.';
+        }
+      }
+      return;
+    }catch(e){}
+  }
+  /* Fallback iOS: no hay beforeinstallprompt, mostrar instrucciones */
+  if(isIOS()){
+    var hint = document.getElementById('pwa-install-hint');
+    if(hint){
+      hint.style.display = 'block';
+      hint.style.background = 'rgba(232,160,32,.08)';
+      hint.style.borderColor = 'rgba(232,160,32,.30)';
+      hint.style.color = '#E8A020';
+      hint.innerHTML = '<strong>Para instalar en iPhone:</strong><br>1. Tocá el botón <strong>compartir</strong> abajo (□ con flecha hacia arriba)<br>2. Bajá y elegí <strong>"Agregar a pantalla de inicio"</strong><br>3. Confirmá y vas a ver el ícono <strong>EJ Scanner</strong> en tu pantalla.';
+    }
+    return;
+  }
+  /* Fallback genérico: abrir el escáner en pestaña nueva */
+  var hint = document.getElementById('pwa-install-hint');
+  if(hint){
+    hint.style.display = 'block';
+    hint.innerHTML = 'Tu navegador no permite instalar la app directamente. Abrí el escáner manualmente desde el botón de abajo, y agregalo a la pantalla principal desde el menú del navegador.';
+  }
+}
+
+window.addEventListener('appinstalled', function(){
+  console.log('[PWA] App instalada');
+  _deferredInstallPrompt = null;
+});
 
 /* ============================================================
    QR PREPAGOS — créditos comprados a EJ para emitir QRs por
