@@ -902,6 +902,28 @@ body::after {
   color:var(--t2);background:rgba(255,255,255,.06);
   border:1px solid var(--b2);border-radius:999px;padding:5px 12px;
 }
+/* Calendario / agenda - evento terminado */
+.ag-i.ag-terminado { cursor: default; opacity: .6; }
+.ag-terminado-badge {
+  display:inline-flex;align-items:center;
+  font-family:Outfit,sans-serif;font-size:9px;font-weight:600;
+  letter-spacing:.5px;text-transform:uppercase;
+  color:var(--t2);background:rgba(255,255,255,.06);
+  border:1px solid var(--b2);border-radius:999px;padding:3px 9px;white-space:nowrap;
+}
+/* Flyer / carrusel - evento terminado */
+.flyer-card.flyer-terminado { cursor: default; }
+.flyer-card.flyer-terminado .flyer-img { filter: grayscale(.55) brightness(.7); }
+.flyer-terminado-badge {
+  position:absolute;top:10px;left:10px;z-index:5;
+  font-family:Outfit,sans-serif;font-size:10px;font-weight:700;
+  letter-spacing:.6px;text-transform:uppercase;color:#fff;
+  background:rgba(10,7,4,.82);border:1px solid rgba(255,255,255,.28);
+  border-radius:999px;padding:5px 12px;backdrop-filter:blur(2px);
+}
+.flyer-cta[disabled] { opacity:.55;cursor:default; }
+/* Panel organizador - badge terminado */
+.badge.b-fin { background:rgba(255,255,255,.08);color:var(--t2);border:1px solid var(--b2); }
 
 /* TARJETA QR - minimal premium */
 .qr-ticket {
@@ -4749,7 +4771,7 @@ function renderPublicEvents(events){
   var shareBtn = function(ev){ return '<button onclick="compartirEvento(&quot;'+escapeHtml(ev.id)+'&quot;,&quot;'+escapeHtml(ev.name)+'&quot;,event)" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.18);border-radius:6px;cursor:pointer;padding:5px 8px;color:#fff;font-size:10px;font-family:Outfit,sans-serif;display:flex;align-items:center;gap:4px;flex-shrink:0;line-height:1" title="Compartir">'+shareIco+' Compartir</button>'; };
   var shareBtnDark = function(ev){ return '<button onclick="compartirEvento(&quot;'+escapeHtml(ev.id)+'&quot;,&quot;'+escapeHtml(ev.name)+'&quot;,event)" style="background:none;border:1px solid var(--b2);border-radius:6px;cursor:pointer;padding:4px 8px;color:var(--t2);font-size:10px;font-family:Outfit,sans-serif;display:flex;align-items:center;gap:4px;flex-shrink:0;line-height:1" title="Compartir">'+shareIco+' Compartir</button>'; };
   if(featured){
-    if(!events.length) featured.innerHTML = empty;
+    if(!todos.length) featured.innerHTML = empty;
     else featured.innerHTML = porVentas.slice(0,3).map(function(ev){
       /* ev-fr va DENTRO de ef-cnt (z-index:10) para no quedar bajo ef-fade */
       return '<div class="evf ef-carnaval" style="min-height:140px">'+
@@ -4791,12 +4813,19 @@ function renderPublicEvents(events){
     list.innerHTML = htmlVigentes + htmlTerminados;
   }
   if(agenda){
-    if(!events.length) agenda.innerHTML = '<div class="empty-state" style="padding:16px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px">La agenda se completa automaticamente con eventos publicados.</div>';
-    else agenda.innerHTML = porFecha.slice(0,8).map(function(ev){
+    /* El calendario muestra próximos primero y luego los terminados (con cartel) */
+    var agendaItems = porFecha.concat(terminadosOrden).slice(0,12);
+    if(!agendaItems.length) agenda.innerHTML = '<div class="empty-state" style="padding:16px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px">La agenda se completa automaticamente con eventos publicados.</div>';
+    else agenda.innerHTML = agendaItems.map(function(ev){
       var parts = String(ev.date || '').split('-');
       var day = parts[2] || '--';
       var mon = parts[1] || '--';
-      return '<div class="ag-i" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)"><div class="ag-dt"><span class="ag-day">'+escapeHtml(day)+'</span><span class="ag-mon">'+escapeHtml(mon)+'</span></div><div class="ag-ln"></div><div class="ag-inf"><div class="ag-nm">'+escapeHtml(ev.name)+'</div><div class="ag-meta">'+escapeHtml([ev.category, ev.place].filter(Boolean).join(' - '))+'</div></div><div class="ag-r"><span class="ag-pr">'+escapeHtml(ev.price || '')+'</span><div class="ag-hr">'+escapeHtml(ev.time || '')+'</div></div></div>';
+      var fin = esEventoTerminado(ev);
+      var click = fin ? '' : ' onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)"';
+      var derecha = fin
+        ? '<span class="ag-terminado-badge">Terminado</span>'
+        : '<span class="ag-pr">'+escapeHtml(ev.price || '')+'</span><div class="ag-hr">'+escapeHtml(ev.time || '')+'</div>';
+      return '<div class="ag-i'+(fin ? ' ag-terminado' : '')+'"'+click+'><div class="ag-dt"><span class="ag-day">'+escapeHtml(day)+'</span><span class="ag-mon">'+escapeHtml(mon)+'</span></div><div class="ag-ln"></div><div class="ag-inf"><div class="ag-nm">'+escapeHtml(ev.name)+'</div><div class="ag-meta">'+escapeHtml([ev.category, ev.place].filter(Boolean).join(' - '))+'</div></div><div class="ag-r">'+derecha+'</div></div>';
     }).join('');
   }
 }
@@ -4806,8 +4835,12 @@ function renderFlyerMarketing(){
   var trackMini = document.getElementById('flyer-track-mini');
   if(!track && !trackMini) return;
   var store = ejLoadStore();
-  var items = store.events.filter(function(ev){ return ev.status !== 'draft' && !esEventoTerminado(ev); });
+  var items = store.events.filter(function(ev){ return ev.status !== 'draft'; });
   items.sort(function(a,b){
+    /* terminados al final */
+    var at = esEventoTerminado(a) ? 1 : 0;
+    var bt = esEventoTerminado(b) ? 1 : 0;
+    if(at !== bt) return at - bt;
     var af = a.flyer ? 0 : 1;
     var bf = b.flyer ? 0 : 1;
     if(af !== bf) return af - bf;
@@ -4821,14 +4854,17 @@ function renderFlyerMarketing(){
     return;
   }
   function buildCard(ev){
+    var fin = esEventoTerminado(ev);
     var meta = [formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' · ');
     var img = ev.flyer ? '<img class="flyer-img" src="'+ev.flyer+'" alt="Flyer de '+escapeHtml(ev.name)+'">' : '<div class="flyer-placeholder"><span>Flyer pendiente</span></div>';
-    var click = ev.id ? 'seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)' : 'GOI(&quot;publico&quot;,&quot;compra&quot;)';
-    return '<article class="flyer-card" onclick="'+click+'">'+img+
+    var ribbon = fin ? '<span class="flyer-terminado-badge">Terminado</span>' : '';
+    var click = fin ? '' : ' onclick="'+(ev.id ? 'seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)' : 'GOI(&quot;publico&quot;,&quot;compra&quot;)')+'"';
+    var cta = fin ? '<button class="flyer-cta" disabled>Terminado</button>' : '<button class="flyer-cta">Ver evento</button>';
+    return '<article class="flyer-card'+(fin ? ' flyer-terminado' : '')+'"'+click+'>'+ribbon+img+
       '<div class="flyer-info"><div class="flyer-cat">'+escapeHtml(ev.category || 'Evento')+'</div>'+
       '<div class="flyer-name">'+escapeHtml(ev.name)+'</div>'+
-      '<div class="flyer-meta">'+escapeHtml(meta || 'Próximamente')+'<br>'+escapeHtml(ev.price || '')+'</div>'+
-      '<button class="flyer-cta">Ver evento</button></div></article>';
+      '<div class="flyer-meta">'+escapeHtml(meta || 'Próximamente')+'<br>'+escapeHtml(fin ? '' : (ev.price || ''))+'</div>'+
+      cta+'</div></article>';
   }
   /* Hero: solo eventos con flyer real (el carousel es 100% visual) */
   var itemsHero = items.filter(function(ev){ return !!ev.flyer; });
@@ -5263,7 +5299,10 @@ function renderOrgEvents(events){
   events.forEach(function(item){
     var row = document.createElement('div');
     row.className = 'ev-row user-project';
-    row.innerHTML = '<div class="ev-row-top"><div class="ev-row-nm">'+escapeHtml(item.name)+'</div><span class="badge '+(item.status === 'draft' ? 'b-dr' : 'b-ok')+'">'+(item.status === 'draft' ? 'Borrador' : 'Activo')+'</span></div>'+
+    var fin = item.status !== 'draft' && esEventoTerminado(item);
+    var badgeClass = item.status === 'draft' ? 'b-dr' : (fin ? 'b-fin' : 'b-ok');
+    var badgeText = item.status === 'draft' ? 'Borrador' : (fin ? 'Terminado' : 'Activo');
+    row.innerHTML = '<div class="ev-row-top"><div class="ev-row-nm">'+escapeHtml(item.name)+'</div><span class="badge '+badgeClass+'">'+badgeText+'</span></div>'+
       '<div class="ev-row-meta">'+escapeHtml([formatearFecha(item.date),item.place,item.price].filter(Boolean).join(' · '))+'</div>'+
       '<div class="ev-row-stats" data-org-event-id="'+escapeHtml(String(item.id))+'"><div class="ev-row-stat">'+(item.flyer ? 'Flyer cargado' : 'Sin flyer')+'</div></div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px">'+
