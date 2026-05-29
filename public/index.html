@@ -892,6 +892,16 @@ body::after {
   transition: background .15s, border-color .15s;
 }
 .evi:hover { background: rgba(255,255,255,.055) !important; }
+.evi-terminado { cursor: default; opacity: .62; }
+.evi-terminado:hover { background: rgba(255,255,255,.03) !important; }
+.evi-terminado .evi-nm { color: var(--t2); }
+.evi-terminado-badge {
+  display:inline-flex;align-items:center;
+  font-family:Outfit,sans-serif;font-size:10px;font-weight:600;
+  letter-spacing:.5px;text-transform:uppercase;
+  color:var(--t2);background:rgba(255,255,255,.06);
+  border:1px solid var(--b2);border-radius:999px;padding:5px 12px;
+}
 
 /* TARJETA QR - minimal premium */
 .qr-ticket {
@@ -4697,14 +4707,31 @@ function calcVendidasEvento(ev){
   }, 0);
 }
 
+/* Un evento está terminado si su fecha (fin del día, hora de Jujuy UTC-3) ya pasó.
+   No se borra: queda visible con cartel "Terminado" y sin opción de compra. */
+function esEventoTerminado(ev){
+  if(!ev || !ev.date) return false;
+  var fin = new Date(String(ev.date).slice(0,10) + 'T23:59:59-03:00');
+  if(isNaN(fin.getTime())) return false;
+  return fin.getTime() < Date.now();
+}
+
 function renderPublicEvents(events){
-  events = (events || []).filter(function(ev){ return ev.status !== 'draft'; });
+  var todos = (events || []).filter(function(ev){ return ev.status !== 'draft'; });
+  /* Separar vigentes de terminados: los terminados siguen en la web pero
+     fuera de destacados/agenda/carrusel y sin botón de compra. */
+  var terminados = todos.filter(esEventoTerminado);
+  var events = todos.filter(function(ev){ return !esEventoTerminado(ev); });
   /* Orden por fecha ascendente (más cercano primero) */
   var porFecha = events.slice().sort(function(a, b){
     var da = String(a.date || '9999-12-31');
     var db = String(b.date || '9999-12-31');
     if(da !== db) return da.localeCompare(db);
     return String(a.time || '').localeCompare(String(b.time || ''));
+  });
+  /* Terminados: más recientes primero */
+  var terminadosOrden = terminados.slice().sort(function(a, b){
+    return String(b.date || '').localeCompare(String(a.date || ''));
   });
   /* Orden por más vendidos (destacados) */
   var porVentas = events.slice().sort(function(a, b){
@@ -4743,7 +4770,7 @@ function renderPublicEvents(events){
     /* la lista muestra los eventos no destacados, ordenados por fecha */
     var idsDestacados = porVentas.slice(0,3).map(function(e){ return String(e.id); });
     var restantes = porFecha.filter(function(e){ return idsDestacados.indexOf(String(e.id)) === -1; });
-    list.innerHTML = restantes.map(function(ev){
+    var htmlVigentes = restantes.map(function(ev){
       return '<div class="evi" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">'+
         '<div class="evi-stripe" style="background:var(--t)"></div>'+
         '<div class="evi-body"><div class="evi-cat">'+escapeHtml(ev.category || 'Evento')+'</div><div class="evi-nm">'+escapeHtml(ev.name)+'</div><div class="evi-meta">'+escapeHtml([formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' - '))+'</div></div>'+
@@ -4752,6 +4779,16 @@ function renderPublicEvents(events){
         '<button class="bev t" style="font-size:10px;padding:0 12px;min-height:36px" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button>'+
         '</div></div>';
     }).join('');
+    /* Eventos terminados: visibles pero sin compra, con cartel "Terminado" */
+    var htmlTerminados = terminadosOrden.map(function(ev){
+      return '<div class="evi evi-terminado">'+
+        '<div class="evi-stripe" style="background:var(--t3)"></div>'+
+        '<div class="evi-body"><div class="evi-cat">'+escapeHtml(ev.category || 'Evento')+'</div><div class="evi-nm">'+escapeHtml(ev.name)+'</div><div class="evi-meta">'+escapeHtml([formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' - '))+'</div></div>'+
+        '<div class="evi-r">'+
+        '<span class="evi-terminado-badge">Terminado</span>'+
+        '</div></div>';
+    }).join('');
+    list.innerHTML = htmlVigentes + htmlTerminados;
   }
   if(agenda){
     if(!events.length) agenda.innerHTML = '<div class="empty-state" style="padding:16px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px">La agenda se completa automaticamente con eventos publicados.</div>';
@@ -4769,7 +4806,7 @@ function renderFlyerMarketing(){
   var trackMini = document.getElementById('flyer-track-mini');
   if(!track && !trackMini) return;
   var store = ejLoadStore();
-  var items = store.events.filter(function(ev){ return ev.status !== 'draft'; });
+  var items = store.events.filter(function(ev){ return ev.status !== 'draft' && !esEventoTerminado(ev); });
   items.sort(function(a,b){
     var af = a.flyer ? 0 : 1;
     var bf = b.flyer ? 0 : 1;

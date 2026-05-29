@@ -2337,7 +2337,7 @@ app.get('/api/eventos', async (req, res) => {
         ) ORDER BY t.display_order ASC, t.precio_base ASC) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
-      WHERE e.activo = true AND e.fecha >= CURRENT_DATE
+      WHERE e.activo = true
       GROUP BY e.id ORDER BY e.fecha ASC
     `);
     res.json({ ok: true, data: rows });
