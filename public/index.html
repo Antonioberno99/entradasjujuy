@@ -4540,7 +4540,7 @@ function eventoDesdeBackend(ev){
     type: precio > 0 ? 'pago' : 'gratis',
     capacity: ev.capacidad_total || ev.capacity || '',
     price: precio > 0 ? '$' + Math.round(precio).toLocaleString('es-AR') : (ev.price || 'Gratis'),
-    flyer: ev.imagen_url || ev.flyer || '',
+    flyer: ev.imagen_url || ev.flyer || (ev.has_flyer && ev.id ? (BACKEND + '/api/eventos/' + encodeURIComponent(ev.id) + '/flyer') : ''),
     tipos_entrada: tipos
   };
 }
@@ -4853,10 +4853,13 @@ function renderFlyerMarketing(){
     if(trackMini) trackMini.innerHTML = empty;
     return;
   }
-  function buildCard(ev){
+  function buildCard(ev, idx){
     var fin = esEventoTerminado(ev);
     var meta = [formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' · ');
-    var img = ev.flyer ? '<img class="flyer-img" src="'+ev.flyer+'" alt="Flyer de '+escapeHtml(ev.name)+'">' : '<div class="flyer-placeholder"><span>Flyer pendiente</span></div>';
+    /* Los primeros flyers (los principales del hero) cargan con prioridad alta
+       y sin diferir para que aparezcan cuanto antes; el resto, diferidos. */
+    var imgLoad = (idx || 0) < 2 ? 'fetchpriority="high"' : 'loading="lazy"';
+    var img = ev.flyer ? '<img class="flyer-img" '+imgLoad+' decoding="async" src="'+ev.flyer+'" alt="Flyer de '+escapeHtml(ev.name)+'">' : '<div class="flyer-placeholder"><span>Flyer pendiente</span></div>';
     var ribbon = fin ? '<span class="flyer-terminado-badge">Terminado</span>' : '';
     var click = fin ? '' : ' onclick="'+(ev.id ? 'seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)' : 'GOI(&quot;publico&quot;,&quot;compra&quot;)')+'"';
     var cta = fin ? '<button class="flyer-cta" disabled>Terminado</button>' : '<button class="flyer-cta">Ver evento</button>';

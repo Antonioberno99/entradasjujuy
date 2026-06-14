@@ -2340,7 +2340,12 @@ app.get('/api/eventos', async (req, res) => {
       WHERE e.activo = true
       GROUP BY e.id ORDER BY e.fecha ASC
     `);
-    res.json({ ok: true, data: rows });
+    /* No mandamos imagen_url (flyer en base64, hasta ~2MB c/u) en el listado:
+       inflaba el JSON a varios MB y hacía que los flyers tardaran en aparecer.
+       Enviamos solo has_flyer; el flyer se sirve aparte y cacheable en
+       GET /api/eventos/:id/flyer */
+    const data = rows.map(({ imagen_url, ...rest }) => ({ ...rest, has_flyer: !!imagen_url }));
+    res.json({ ok: true, data });
   } catch (err) {
     console.error('[GET /api/eventos]', err.message);
     res.status(500).json({ ok: false, error: err.message });
@@ -2367,7 +2372,27 @@ app.get('/api/eventos/:id', async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
- 
+
+// ── Flyer del evento — se sirve como imagen aparte y cacheable, no embebida
+//    en el listado. Decodifica el data URL base64 guardado en imagen_url.
+app.get('/api/eventos/:id/flyer', async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT imagen_url FROM eventos WHERE id = $1', [req.params.id]);
+    const dataUrl = rows[0] && rows[0].imagen_url ? String(rows[0].imagen_url) : '';
+    const m = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+    if (!m) return res.status(404).end();
+    const buf = Buffer.from(m[2], 'base64');
+    res.set('Content-Type', m[1]);
+    /* Cacheable: el navegador reusa el flyer en visitas siguientes. El ETag que
+       agrega Express permite revalidar (304) cuando vence el max-age. */
+    res.set('Cache-Control', 'public, max-age=600, stale-while-revalidate=86400');
+    res.send(buf);
+  } catch (err) {
+    console.error('[GET /api/eventos/:id/flyer]', err.message);
+    res.status(500).end();
+  }
+});
+
 // ── INICIAR COMPRA — crea preferencia en MP
 app.post('/api/compra/iniciar', requireAuth, async (req, res) => {
   const { evento_id, items, comprador } = req.body || {};
