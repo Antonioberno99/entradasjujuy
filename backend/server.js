@@ -2383,6 +2383,11 @@ app.get('/api/eventos/:id/flyer', async (req, res) => {
     if (!m) return res.status(404).end();
     const buf = Buffer.from(m[2], 'base64');
     res.set('Content-Type', m[1]);
+    /* El flyer se embebe desde otro origen (la web servida por Vercel). Sin esto,
+       el Cross-Origin-Resource-Policy: same-origin que pone helmet() hace que el
+       navegador bloquee la imagen aunque el backend responda 200. Es una imagen
+       publica, asi que habilitar cross-origin solo en este endpoint es seguro. */
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
     /* Cacheable: el navegador reusa el flyer en visitas siguientes. El ETag que
        agrega Express permite revalidar (304) cuando vence el max-age. */
     res.set('Cache-Control', 'public, max-age=600, stale-while-revalidate=86400');
