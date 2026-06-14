@@ -723,6 +723,25 @@ footer{background:#0a0704;border-top:1px solid var(--b1);padding:20px 16px}
   .bnav{display:none}
   .cpb{padding-bottom:0}
 }
+@media(min-width:768px){
+  /* ---- Vista de compra en desktop: mas compacta y centrada ---- */
+  #pub-compra.on{ max-width:760px; margin:24px auto 40px; }
+  #pub-compra.on .compra-hdr{ padding:16px 22px; border:1px solid var(--b1); border-bottom:none; border-radius:14px 14px 0 0; }
+  #pub-compra.on .compra-body{ padding:20px 22px 24px; border:1px solid var(--b1); border-top:none; border-radius:0 0 14px 14px; }
+  /* Con flyer: dos columnas — flyer (mas chico) al costado e info de compra a la derecha */
+  #pub-compra.on.has-flyer{
+    display:grid;
+    grid-template-columns:minmax(0,360px) minmax(0,1fr);
+    grid-template-areas:"flyer hdr" "flyer body";
+    align-items:start;
+    column-gap:28px;
+    max-width:920px;
+  }
+  #pub-compra.on.has-flyer #compra-flyer-wrap{ grid-area:flyer; align-self:start; position:sticky; top:24px; border-radius:14px; overflow:hidden; background:transparent; }
+  #pub-compra.on.has-flyer #compra-flyer-img{ border-radius:14px; }
+  #pub-compra.on.has-flyer .compra-hdr{ grid-area:hdr; }
+  #pub-compra.on.has-flyer .compra-body{ grid-area:body; }
+}
 @media(min-width:1100px){
   .ev-main-wrap{grid-template-columns:1.8fr 1fr 1fr}
 }
@@ -4619,8 +4638,9 @@ function actualizarVistaCompra(ev){
   var flyerWrap = document.getElementById('compra-flyer-wrap');
   var flyerImg = document.getElementById('compra-flyer-img');
   if(flyerWrap && flyerImg){
-    if(ev.flyer){ flyerImg.src = ev.flyer; flyerWrap.style.display = 'block'; }
-    else { flyerWrap.style.display = 'none'; flyerImg.src = ''; }
+    var compraView = document.getElementById('pub-compra');
+    if(ev.flyer){ flyerImg.src = ev.flyer; flyerWrap.style.display = 'block'; if(compraView) compraView.classList.add('has-flyer'); }
+    else { flyerWrap.style.display = 'none'; flyerImg.src = ''; if(compraView) compraView.classList.remove('has-flyer'); }
   }
   /* Descripción del evento: ahí está la info que escribió el organizador
      (horarios, qué incluye, restricciones, contacto, etc.) */
