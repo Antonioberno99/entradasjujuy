@@ -2061,6 +2061,9 @@ app.post('/api/organizador/qr-credits/usar', giftLimiter, requireAuth, async (re
   const email = normalizeEmail(req.body?.email || '');
   const dni = String(req.body?.dni || '').replace(/\D/g, '').slice(0, 12);
   const cantidad = Math.min(20, Math.max(1, parseInt(req.body?.cantidad || '1', 10) || 1));
+  /* Precio al que el organizador vendió la entrada por afuera (por unidad).
+     Se guarda para que impacte en sus ingresos/estadísticas. Opcional: 0 = sin cargo. */
+  const precioVenta = parseMoney(req.body?.precio ?? req.body?.precio_venta ?? 0);
 
   if (!eventoId) return res.status(400).json({ ok: false, error: 'Seleccioná un evento' });
   if (!nombre) return res.status(400).json({ ok: false, error: 'Ingresá el nombre del comprador' });
@@ -2093,10 +2096,9 @@ app.post('/api/organizador/qr-credits/usar', giftLimiter, requireAuth, async (re
       return res.status(404).json({ ok: false, error: 'Evento o tipo de entrada no encontrado' });
     }
     const tipo = tipos[0];
-    if (Number(tipo.disponibles) < cantidad) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ ok: false, error: 'No hay stock suficiente en ese tipo de entrada' });
-    }
+    /* No bloqueamos por stock: una venta por crédito es una venta real que el
+       organizador ya cobró por afuera. Si no alcanza el cupo, más abajo
+       ampliamos la capacidad del tipo lo justo para absorberla. */
 
     /* Crear orden — estado 'pagada' (el cobro ya ocurrió off-platform, los
        créditos cubren la emisión). Marcamos en mp_payment_id que es qr_credit. */
@@ -2108,8 +2110,8 @@ app.post('/api/organizador/qr-credits/usar', giftLimiter, requireAuth, async (re
     );
     await client.query(
       `INSERT INTO orden_items (orden_id, tipo_entrada_id, cantidad, precio_unitario, fee_unitario)
-       VALUES ($1,$2,$3,0,0)`,
-      [ordenId, tipo.id, cantidad]
+       VALUES ($1,$2,$3,$4,0)`,
+      [ordenId, tipo.id, cantidad, precioVenta]
     );
 
     /* Calcular expiresIn (igual lógica que compra/cortesía) */
@@ -2146,8 +2148,14 @@ app.post('/api/organizador/qr-credits/usar', giftLimiter, requireAuth, async (re
       });
     }
 
-    /* Decrementar stock y saldo de créditos atómico */
-    await client.query('UPDATE tipos_entrada SET disponibles = disponibles - $2 WHERE id = $1', [tipo.id, cantidad]);
+    /* Decrementar stock y saldo de créditos atómico. Si no alcanza el cupo,
+       ampliamos la capacidad lo justo (faltante) para que disponibles no quede
+       negativo y la capacidad nunca sea menor a lo realmente vendido. */
+    const faltante = Math.max(0, cantidad - Number(tipo.disponibles));
+    await client.query(
+      'UPDATE tipos_entrada SET capacidad = capacidad + $2, disponibles = disponibles + $2 - $3 WHERE id = $1',
+      [tipo.id, faltante, cantidad]
+    );
     const { rows: nuevo } = await client.query(
       'UPDATE usuarios SET qr_credits = qr_credits - $2 WHERE id = $1 RETURNING qr_credits',
       [req.user.id, cantidad]
@@ -2156,7 +2164,7 @@ app.post('/api/organizador/qr-credits/usar', giftLimiter, requireAuth, async (re
     await client.query(
       `INSERT INTO qr_credits_log (usuario_id, tipo, cantidad, saldo_despues, evento_id, orden_id, comprador_email, nota)
        VALUES ($1, 'uso', $2, $3, $4, $5, $6, $7)`,
-      [req.user.id, cantidad, saldoFinal, eventoId, ordenId, email, `Emisión a ${nombre}`]
+      [req.user.id, cantidad, saldoFinal, eventoId, ordenId, email, precioVenta > 0 ? `Emisión a ${nombre} · $${Math.round(precioVenta).toLocaleString('es-AR')} c/u` : `Emisión a ${nombre}`]
     );
     await client.query('COMMIT');
 

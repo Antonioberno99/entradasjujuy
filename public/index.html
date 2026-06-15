@@ -3075,6 +3075,7 @@ function chipSel(el,cls){
   <div class="fg-row"><div class="fg"><label class="fl">Tipo de entrada</label><select class="fi-sel" id="sell-ticket"><option value="">General</option></select></div><div class="fg"><label class="fl">Cantidad</label><input class="fi" id="sell-qty" type="number" min="1" max="20" value="1"></div></div>
   <div class="fg"><label class="fl">Nombre del comprador</label><input class="fi" id="sell-name" type="text" placeholder="Nombre y apellido"></div>
   <div class="fg-row"><div class="fg"><label class="fl">Email</label><input class="fi" id="sell-email" type="email" placeholder="comprador@email.com"></div><div class="fg"><label class="fl">DNI (opcional)</label><input class="fi" id="sell-dni" type="text" inputmode="numeric" placeholder="Sin puntos"></div></div>
+  <div class="fg"><label class="fl">Precio de venta por entrada</label><input class="fi" id="sell-price" type="number" min="0" inputmode="numeric" placeholder="Ej: 5000"><div style="font-size:11px;color:var(--t3);margin-top:4px;line-height:1.4">Lo que cobraste por afuera (transferencia/efectivo). Suma a tus ingresos para llevar el control. Dejalo vacío o en 0 si fue sin cargo.</div></div>
   <button class="btn-sub c" id="sell-submit" onclick="enviarVentaQrCredit(event)" style="margin-top:4px">Emitir y enviar QR</button>
   <div class="publish-note" id="sell-note" style="margin-top:8px"></div>
 </div>
@@ -5999,7 +6000,7 @@ function cerrarSellModal(){
   var b = document.getElementById('sell-modal-backdrop');
   if(m){ m.style.transform = 'translateY(100%)'; setTimeout(function(){ m.style.display = 'none'; }, 350); }
   if(b) b.style.display = 'none';
-  ['sell-name','sell-email','sell-dni'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
+  ['sell-name','sell-email','sell-dni','sell-price'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
   var qty = document.getElementById('sell-qty'); if(qty) qty.value = '1';
 }
 
@@ -6039,7 +6040,8 @@ async function enviarVentaQrCredit(event){
     cantidad: document.getElementById('sell-qty')?.value || '1',
     nombre: document.getElementById('sell-name')?.value.trim() || '',
     email: document.getElementById('sell-email')?.value.trim() || '',
-    dni: document.getElementById('sell-dni')?.value.trim() || ''
+    dni: document.getElementById('sell-dni')?.value.trim() || '',
+    precio: document.getElementById('sell-price')?.value || '0'
   };
   if(!payload.nombre){ if(note){ note.style.color = '#C44040'; note.textContent = 'Ingresá el nombre del comprador.'; } return; }
   if(!payload.email || !payload.email.includes('@')){ if(note){ note.style.color = '#C44040'; note.textContent = 'Ingresá un email válido.'; } return; }
@@ -6058,11 +6060,13 @@ async function enviarVentaQrCredit(event){
     var data = await res.json().catch(function(){ return {}; });
     if(!res.ok || !data.ok) throw new Error(data.error || 'No se pudo emitir.');
     var emailOk = data.data?.email_sent;
+    var precioNum = parseInt(payload.precio, 10) || 0;
+    var registrado = precioNum > 0 ? (' Registrado: $'+(precioNum * cantidadNum).toLocaleString('es-AR')+' en tus ingresos.') : '';
     if(note){
       note.style.color = emailOk ? 'var(--g)' : 'var(--s)';
       note.textContent = emailOk
-        ? ('QR enviado por email. Saldo restante: '+data.data.saldo_restante+'.')
-        : 'QR generado pero el email no salió. Reintentá desde Mis ventas.';
+        ? ('QR enviado por email. Saldo restante: '+data.data.saldo_restante+'.'+registrado)
+        : ('QR generado pero el email no salió. Reintentá desde Mis ventas.'+registrado);
     }
     cargarQrCreditsStatus();
     cargarMisProductos();
