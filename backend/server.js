@@ -1973,7 +1973,7 @@ app.get('/api/organizador/qr-credits', requireAuth, async (req, res) => {
     const { rows: usr } = await db.query('SELECT qr_credits FROM usuarios WHERE id = $1', [req.user.id]);
     const balance = Number(usr[0]?.qr_credits || 0);
     const { rows: log } = await db.query(
-      `SELECT id, tipo, cantidad, saldo_despues, monto_total, comprador_email, nota, created_at
+      `SELECT id, tipo, cantidad, saldo_despues, monto_total, comprador_email, nota, orden_id, evento_id, created_at
        FROM qr_credits_log
        WHERE usuario_id = $1
        ORDER BY created_at DESC
@@ -2861,11 +2861,23 @@ app.get('/api/orden/:id', requireAuth, async (req, res) => {
 
 app.post('/api/orden/:id/reenviar', requireAuth, async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT * FROM ordenes WHERE id = $1', [req.params.id]);
+    /* Necesitamos el organizador_id del evento para permitir reenviar al
+       organizador (caso: vendió por transferencia con QR prepagos y necesita
+       reenviarle las entradas al comprador). */
+    const { rows } = await db.query(`
+      SELECT o.*, ev.organizador_id
+      FROM ordenes o
+      JOIN eventos ev ON ev.id = o.evento_id
+      WHERE o.id = $1
+    `, [req.params.id]);
     if (!rows.length) return res.status(404).json({ ok: false, error: 'Orden no encontrada' });
     const orden = rows[0];
     if (orden.estado !== 'pagada' && orden.estado !== 'cortesia') return res.status(409).json({ ok: false, error: 'La orden todavia no esta pagada' });
-    if (req.user.rol !== 'admin' && normalizeEmail(orden.comprador_email) !== normalizeEmail(req.user.email)) {
+
+    const esAdmin = req.user.rol === 'admin';
+    const esComprador = normalizeEmail(orden.comprador_email) === normalizeEmail(req.user.email);
+    const esOrganizador = String(orden.organizador_id) === String(req.user.id);
+    if (!esAdmin && !esComprador && !esOrganizador) {
       return res.status(403).json({ ok: false, error: 'No tenes permiso para reenviar estas entradas' });
     }
 

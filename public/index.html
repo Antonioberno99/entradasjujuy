@@ -5838,8 +5838,29 @@ function renderQrCreditsLog(log){
     var label = l.tipo === 'compra' ? '+' + l.cantidad + ' compra' : (l.tipo === 'uso' ? '-' + l.cantidad + ' uso' : l.tipo);
     var color = l.tipo === 'compra' ? 'var(--g)' : (l.tipo === 'uso' ? 'var(--t2)' : 'var(--t3)');
     var detail = l.comprador_email ? ' · ' + escapeHtml(l.comprador_email) : (l.monto_total ? ' · $' + Number(l.monto_total).toLocaleString('es-AR') : '');
-    return '<div style="padding:5px 0;border-bottom:1px solid var(--b1)"><span style="color:'+color+';font-weight:600">'+label+'</span><span style="color:var(--t3)"> · '+fecha+detail+'</span></div>';
+    /* Botón para reenviar la entrada al comprador: aparece solo en movimientos
+       de uso (cuando el organizador emitió una entrada con créditos) y que
+       tengan orden_id asociada. */
+    var btnReenviar = (l.tipo === 'uso' && l.orden_id)
+      ? '<button onclick="reenviarVentaQrCredit(&quot;'+escapeHtml(String(l.orden_id))+'&quot;, this)" style="margin-left:8px;height:24px;border-radius:6px;border:1px solid var(--b1);background:var(--bg);color:var(--t1);padding:0 8px;cursor:pointer;font-size:10px;font-weight:600">Reenviar email</button>'
+      : '';
+    return '<div style="padding:5px 0;border-bottom:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;gap:8px"><div><span style="color:'+color+';font-weight:600">'+label+'</span><span style="color:var(--t3)"> · '+fecha+detail+'</span></div>'+btnReenviar+'</div>';
   }).join('');
+}
+
+async function reenviarVentaQrCredit(ordenId, btn){
+  if(!ordenId) return;
+  var textoOriginal = btn ? btn.textContent : 'Reenviar email';
+  if(btn){ btn.disabled = true; btn.textContent = 'Reenviando...'; }
+  try{
+    var r = await fetch(BACKEND + '/api/orden/' + encodeURIComponent(ordenId) + '/reenviar', { method:'POST', headers: apiHeaders() });
+    var d = await r.json();
+    if(btn) btn.textContent = (r.ok && d.ok) ? '✓ Reenviado' : (d.error || 'No se pudo');
+  }catch(e){
+    if(btn) btn.textContent = 'Error';
+  }finally{
+    setTimeout(function(){ if(btn){ btn.disabled = false; btn.textContent = textoOriginal; } }, 3500);
+  }
 }
 
 async function comprarQrCredits(){
