@@ -61,6 +61,21 @@ canvas{display:none}
 .scanner-controls{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .scanner-controls .btn{height:44px;font-size:13px}
 
+/* Overlay de resultado centrado sobre la cámara */
+.cam-stage{position:relative}
+.scan-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(10,7,4,.45);border-radius:14px;opacity:0;visibility:hidden;transition:opacity .18s ease;pointer-events:none}
+.scan-overlay.show{opacity:1;visibility:visible}
+.scan-badge{position:relative;width:132px;height:132px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.scan-badge svg{width:72px;height:72px;fill:none;stroke:#fff;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+.scan-ring{position:absolute;inset:-6px;border-radius:50%;border:5px solid #fff;opacity:0}
+.scan-label{font-size:21px;font-weight:800;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.7);letter-spacing:.3px;text-align:center;padding:0 16px}
+.scan-overlay.ok .scan-badge{background:#3DAA6A}.scan-overlay.used .scan-badge{background:#E8A020}.scan-overlay.error .scan-badge{background:#C44040}
+.scan-overlay.ok .scan-ring{border-color:#3DAA6A}.scan-overlay.used .scan-ring{border-color:#E8A020}.scan-overlay.error .scan-ring{border-color:#C44040}
+.scan-overlay.show .scan-badge{animation:scanpop .42s cubic-bezier(.18,1.25,.4,1)}
+.scan-overlay.show .scan-ring{animation:scanring .8s ease-out}
+@keyframes scanpop{0%{transform:scale(.2);opacity:0}55%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+@keyframes scanring{0%{transform:scale(.85);opacity:.75}100%{transform:scale(1.9);opacity:0}}
+
 /* Result */
 .result{margin-top:12px;border-radius:14px;padding:18px;text-align:center;animation:slideIn .25s ease}
 @keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -165,7 +180,13 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
 
     <!-- Scanner -->
     <div class="scanner-wrap">
-      <video id="qr-video" playsinline webkit-playsinline muted></video>
+      <div class="cam-stage">
+        <video id="qr-video" playsinline webkit-playsinline muted></video>
+        <div id="scan-overlay" class="scan-overlay" aria-hidden="true">
+          <div class="scan-badge"><span class="scan-ring"></span><span id="scan-icon"></span></div>
+          <div class="scan-label" id="scan-label"></div>
+        </div>
+      </div>
       <canvas id="qr-canvas"></canvas>
       <div class="scanner-controls">
         <button class="btn btn-primary" id="open-cam-btn" onclick="abrirCamara()">📷 Abrir cámara</button>
@@ -303,8 +324,30 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
       '<div class="result-title">'+titles[tipo]+'</div>'+
       '<div class="result-detail">'+escapeHtml(msg||'')+'</div>'+
       (info ? '<div class="result-detail" style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)">'+escapeHtml(info)+'</div>' : '');
-    /* Beep + vibración */
+    /* Overlay grande centrado sobre la cámara + beep + vibración */
+    showScanOverlay(tipo);
     feedback(tipo);
+  }
+
+  var _scanOverlayTimer = null;
+  function showScanOverlay(tipo){
+    var ov = document.getElementById('scan-overlay');
+    var icon = document.getElementById('scan-icon');
+    var label = document.getElementById('scan-label');
+    if(!ov || !icon || !label) return;
+    var icons = {
+      ok:'<svg viewBox="0 0 24 24"><polyline points="5 13 10 18 19 6.5"></polyline></svg>',
+      used:'<svg viewBox="0 0 24 24"><line x1="12" y1="4.5" x2="12" y2="13"></line><circle cx="12" cy="18.5" r="1.4" fill="#fff" stroke="none"></circle></svg>',
+      error:'<svg viewBox="0 0 24 24"><line x1="6.5" y1="6.5" x2="17.5" y2="17.5"></line><line x1="17.5" y1="6.5" x2="6.5" y2="17.5"></line></svg>'
+    };
+    var labels = { ok:'Entrada válida', used:'Ya utilizada', error:'No válida' };
+    icon.innerHTML = icons[tipo] || icons.error;
+    label.textContent = labels[tipo] || labels.error;
+    ov.className = 'scan-overlay ' + tipo;
+    void ov.offsetWidth;
+    ov.classList.add('show');
+    if(_scanOverlayTimer) clearTimeout(_scanOverlayTimer);
+    _scanOverlayTimer = setTimeout(function(){ ov.classList.remove('show'); }, 1800);
   }
 
   function feedback(tipo){
