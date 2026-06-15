@@ -3076,6 +3076,24 @@ function chipSel(el,cls){
 </div>
 
 <!-- ================================================================
+     MODAL REENVIAR QR (lista de ventas con créditos por evento)
+     ================================================================ -->
+<div id="resend-modal-backdrop" onclick="cerrarResendModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9995"></div>
+<div id="resend-modal" role="dialog" aria-modal="true" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;padding:24px 20px max(24px,env(safe-area-inset-bottom));z-index:9996;max-width:480px;max-height:92vh;overflow-y:auto;margin:0 auto;box-shadow:0 -8px 40px rgba(0,0,0,0.2);transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.2,0.64,1);border-top:1px solid var(--b1)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:var(--t1)">Reenviar QR</div>
+    <button onclick="cerrarResendModal()" style="background:none;border:none;font-size:22px;color:var(--t3);cursor:pointer;padding:4px 8px;line-height:1">✕</button>
+  </div>
+  <div id="resend-modal-evento-nombre" style="font-size:12px;color:var(--c);margin-bottom:8px;font-weight:600"></div>
+  <div style="font-size:12px;color:var(--t3);line-height:1.5;margin-bottom:14px;padding:10px;background:rgba(196,105,43,.06);border:1px solid rgba(196,105,43,.18);border-radius:8px">
+    Si vendiste por transferencia y el comprador no recibió el QR (o lo perdió), tocá <strong>Reenviar</strong> al lado de su email. Le llega el mismo email con los QR.
+  </div>
+  <div id="resend-modal-list" style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto">
+    <div style="padding:14px;color:var(--t2);font-size:13px;text-align:center">Cargando ventas...</div>
+  </div>
+</div>
+
+<!-- ================================================================
      MODAL EDITAR EVENTO
      ================================================================ -->
 <div id="edit-evento-backdrop" onclick="cerrarEditarEvento()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9997"></div>
@@ -5371,9 +5389,10 @@ function renderOrgEvents(events){
     row.innerHTML = '<div class="ev-row-top"><div class="ev-row-nm">'+escapeHtml(item.name)+'</div><span class="badge '+badgeClass+'">'+badgeText+'</span></div>'+
       '<div class="ev-row-meta">'+escapeHtml([formatearFecha(item.date),item.place,item.price].filter(Boolean).join(' · '))+'</div>'+
       '<div class="ev-row-stats" data-org-event-id="'+escapeHtml(String(item.id))+'"><div class="ev-row-stat">'+(item.flyer ? 'Flyer cargado' : 'Sin flyer')+'</div></div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px">'+
         '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="prepararVentaQrCredit(\''+escapeHtml(String(item.id))+'\')">Vender QR</button>'+
         '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="prepararRegaloEvento(\''+escapeHtml(String(item.id))+'\')">Regalar QR</button>'+
+        '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px;background:rgba(196,105,43,.08);border-color:rgba(196,105,43,.35);color:var(--t)" onclick="abrirReenvioEvento(\''+escapeHtml(String(item.id))+'\', \''+escapeHtml(String(item.name||'Evento')).replace(/\'/g,'&#39;')+'\')">Reenviar QR</button>'+
         '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="editarEvento(\''+escapeHtml(String(item.id))+'\')">Editar</button>'+
       '</div>';
     var firstRow = list.querySelector('.ev-row');
@@ -5887,6 +5906,55 @@ async function comprarQrCredits(){
   }catch(e){
     if(msg){ msg.style.display = 'block'; msg.style.background = 'rgba(196,64,64,.08)'; msg.style.color = '#C44040'; msg.textContent = e.message || 'No pudimos iniciar el pago.'; }
     if(btn){ btn.disabled = false; btn.textContent = 'Comprar créditos por Mercado Pago'; }
+  }
+}
+
+/* ====== Modal Reenviar QR (lista ventas con créditos del evento) ====== */
+
+function cerrarResendModal(){
+  var m = document.getElementById('resend-modal');
+  var b = document.getElementById('resend-modal-backdrop');
+  if(m){ m.style.transform = 'translateY(100%)'; setTimeout(function(){ m.style.display = 'none'; }, 350); }
+  if(b) b.style.display = 'none';
+}
+
+async function abrirReenvioEvento(eventoId, eventoNombre){
+  if(!requireAccount('Necesitas iniciar sesión.')) return;
+  if(!eventoId) return;
+  var m = document.getElementById('resend-modal');
+  var b = document.getElementById('resend-modal-backdrop');
+  var nombreEl = document.getElementById('resend-modal-evento-nombre');
+  var listEl = document.getElementById('resend-modal-list');
+  if(nombreEl) nombreEl.textContent = eventoNombre || '';
+  if(listEl) listEl.innerHTML = '<div style="padding:14px;color:var(--t2);font-size:13px;text-align:center">Cargando ventas...</div>';
+  if(m){ m.style.display = 'block'; setTimeout(function(){ m.style.transform = 'translateY(0)'; }, 10); }
+  if(b) b.style.display = 'block';
+
+  try{
+    var r = await fetch(BACKEND + '/api/organizador/qr-credits', { headers: apiHeaders() });
+    var d = await r.json();
+    if(!r.ok || !d.ok) throw new Error(d.error || 'No se pudo cargar el historial.');
+    var ventas = (d.data.log || []).filter(function(l){
+      return l.tipo === 'uso' && l.orden_id && String(l.evento_id) === String(eventoId);
+    });
+    if(!ventas.length){
+      if(listEl) listEl.innerHTML = '<div style="padding:18px;color:var(--t2);font-size:13px;text-align:center;border:1px solid var(--b1);border-radius:10px;background:var(--bg2)">Todavía no vendiste entradas con créditos QR en este evento.<br><span style="color:var(--t3);font-size:12px;display:block;margin-top:6px">Cuando uses "Vender QR" para una venta por transferencia, va a aparecer acá.</span></div>';
+      return;
+    }
+    if(listEl) listEl.innerHTML = ventas.map(function(l){
+      var fecha = (new Date(l.created_at)).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+      var email = l.comprador_email || '(sin email)';
+      var nota = l.nota || '';
+      return '<div style="border:1px solid var(--b1);border-radius:12px;background:var(--bg2);padding:12px;display:flex;justify-content:space-between;gap:10px;align-items:center">'+
+        '<div style="min-width:0;flex:1">'+
+          '<div style="font-size:13px;color:var(--t1);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(email)+'</div>'+
+          '<div style="font-size:11px;color:var(--t3);margin-top:3px">'+escapeHtml(String(l.cantidad||1))+' QR · '+escapeHtml(fecha)+(nota ? ' · '+escapeHtml(nota) : '')+'</div>'+
+        '</div>'+
+        '<button onclick="reenviarVentaQrCredit(&quot;'+escapeHtml(String(l.orden_id))+'&quot;, this)" style="flex-shrink:0;height:34px;border-radius:8px;border:1px solid var(--c);background:rgba(196,105,43,.12);color:var(--t1);padding:0 12px;cursor:pointer;font-size:12px;font-weight:600">Reenviar</button>'+
+      '</div>';
+    }).join('');
+  }catch(e){
+    if(listEl) listEl.innerHTML = '<div style="padding:14px;color:#C44040;font-size:13px;text-align:center;border:1px solid rgba(196,64,64,.3);border-radius:10px;background:rgba(196,64,64,.05)">'+escapeHtml(e.message||'Error cargando ventas.')+'</div>';
   }
 }
 
