@@ -1756,8 +1756,12 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
             </div>
             <button onclick="abrirComprarCreditosModal()" style="background:linear-gradient(180deg,#E8A020,#C4692B);color:#0a0704;border:none;border-radius:10px;padding:0 18px;height:42px;font-size:13px;font-weight:800;cursor:pointer;font-family:Outfit,sans-serif;letter-spacing:.2px;flex-shrink:0">Comprar créditos</button>
           </div>
+          <button onclick="abrirReenvioGeneral()" style="width:100%;background:rgba(232,160,32,0.10);color:#E8A020;border:1px solid rgba(232,160,32,0.45);border-radius:10px;height:42px;font-size:13px;font-weight:700;cursor:pointer;font-family:Outfit,sans-serif;letter-spacing:.2px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E8A020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Reenviar QR a un comprador
+          </button>
           <div style="font-size:11px;color:#7d6c52;line-height:1.5">
-            <strong style="color:#9A8670">¿Cómo funciona?</strong> Después de comprar, en cada evento aparece el botón <strong style="color:#E8A020">"Vender QR"</strong>. Lo usás cuando cobraste por afuera (transferencia/efectivo) para enviarle el QR a tu comprador como una entrada normal.
+            <strong style="color:#9A8670">¿Cómo funciona?</strong> Después de comprar, en cada evento aparece el botón <strong style="color:#E8A020">"Vender QR"</strong>. Lo usás cuando cobraste por afuera (transferencia/efectivo) para enviarle el QR a tu comprador como una entrada normal. Si el comprador no recibió el email, tocá <strong style="color:#E8A020">"Reenviar QR a un comprador"</strong>.
           </div>
         </div>
       </div>
@@ -5919,8 +5923,17 @@ function cerrarResendModal(){
 }
 
 async function abrirReenvioEvento(eventoId, eventoNombre){
+  return _abrirReenvioModal({ eventoId: eventoId, eventoNombre: eventoNombre });
+}
+
+async function abrirReenvioGeneral(){
+  return _abrirReenvioModal({ eventoId: null, eventoNombre: 'Todas tus ventas con créditos QR' });
+}
+
+async function _abrirReenvioModal(opts){
   if(!requireAccount('Necesitas iniciar sesión.')) return;
-  if(!eventoId) return;
+  var eventoId = opts && opts.eventoId ? opts.eventoId : null;
+  var eventoNombre = opts && opts.eventoNombre ? opts.eventoNombre : '';
   var m = document.getElementById('resend-modal');
   var b = document.getElementById('resend-modal-backdrop');
   var nombreEl = document.getElementById('resend-modal-evento-nombre');
@@ -5930,23 +5943,38 @@ async function abrirReenvioEvento(eventoId, eventoNombre){
   if(m){ m.style.display = 'block'; setTimeout(function(){ m.style.transform = 'translateY(0)'; }, 10); }
   if(b) b.style.display = 'block';
 
+  /* Mapa evento_id -> nombre, usado cuando mostramos TODAS las ventas
+     y necesitamos identificar de qué evento es cada una. */
+  var store = ejLoadStore();
+  var eventosMap = {};
+  (store.myEvents || []).forEach(function(ev){ eventosMap[String(ev.id)] = ev.name || 'Evento'; });
+
   try{
     var r = await fetch(BACKEND + '/api/organizador/qr-credits', { headers: apiHeaders() });
     var d = await r.json();
     if(!r.ok || !d.ok) throw new Error(d.error || 'No se pudo cargar el historial.');
     var ventas = (d.data.log || []).filter(function(l){
-      return l.tipo === 'uso' && l.orden_id && String(l.evento_id) === String(eventoId);
+      if(l.tipo !== 'uso' || !l.orden_id) return false;
+      if(eventoId && String(l.evento_id) !== String(eventoId)) return false;
+      return true;
     });
     if(!ventas.length){
-      if(listEl) listEl.innerHTML = '<div style="padding:18px;color:var(--t2);font-size:13px;text-align:center;border:1px solid var(--b1);border-radius:10px;background:var(--bg2)">Todavía no vendiste entradas con créditos QR en este evento.<br><span style="color:var(--t3);font-size:12px;display:block;margin-top:6px">Cuando uses "Vender QR" para una venta por transferencia, va a aparecer acá.</span></div>';
+      var vacio = eventoId
+        ? 'Todavía no vendiste entradas con créditos QR en este evento.'
+        : 'Todavía no vendiste entradas con créditos QR.';
+      if(listEl) listEl.innerHTML = '<div style="padding:18px;color:var(--t2);font-size:13px;text-align:center;border:1px solid var(--b1);border-radius:10px;background:var(--bg2)">'+vacio+'<br><span style="color:var(--t3);font-size:12px;display:block;margin-top:6px">Cuando uses "Vender QR" para una venta por transferencia, va a aparecer acá.</span></div>';
       return;
     }
     if(listEl) listEl.innerHTML = ventas.map(function(l){
       var fecha = (new Date(l.created_at)).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
       var email = l.comprador_email || '(sin email)';
       var nota = l.nota || '';
+      /* Cuando es el listado general, mostramos también el evento arriba */
+      var evNombre = !eventoId ? (eventosMap[String(l.evento_id)] || 'Evento') : '';
+      var headerEv = evNombre ? '<div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#E8A020;font-weight:700;margin-bottom:4px">'+escapeHtml(evNombre)+'</div>' : '';
       return '<div style="border:1px solid var(--b1);border-radius:12px;background:var(--bg2);padding:12px;display:flex;justify-content:space-between;gap:10px;align-items:center">'+
         '<div style="min-width:0;flex:1">'+
+          headerEv+
           '<div style="font-size:13px;color:var(--t1);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(email)+'</div>'+
           '<div style="font-size:11px;color:var(--t3);margin-top:3px">'+escapeHtml(String(l.cantidad||1))+' QR · '+escapeHtml(fecha)+(nota ? ' · '+escapeHtml(nota) : '')+'</div>'+
         '</div>'+
