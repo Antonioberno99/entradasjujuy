@@ -3850,6 +3850,27 @@ function selRol(btn, rol){
   btn.setAttribute('aria-pressed','true');
 }
 
+/* Hace el POST de login y devuelve la data. Timeout largo (55s) para tolerar
+   el cold start del backend en Render (puede tardar 30-60s en despertar). */
+async function _loginFetch(email, pass){
+  var result = await authFetchJson(BACKEND+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})}, 55000);
+  return result.data;
+}
+
+/* Procesa la respuesta del login (éxito / verificación pendiente / error de
+   credenciales). Estos casos NO son fallas de red, así que no se reintentan. */
+function _procesarLoginData(d, email, pass){
+  if(d.ok && d.token && d.usuario){
+    setAutenticado(d.usuario, d.token);
+    cerrarAuth();
+    setTimeout(function(){ irARol(d.usuario.rol); }, 400);
+  } else if((d.ok && d.needs_verification) || d.code === 'email_not_verified'){
+    mostrarPantallaVerificacion(email, d.message || d.error || 'Tu email todavía no está verificado. Te reenviamos el enlace; revisá tu Gmail antes de ingresar.', pass);
+  } else {
+    mostrarAuthMensaje('login-error', d.error || 'Error al ingresar', 'error');
+  }
+}
+
 async function doLogin(event){
   if(event) event.preventDefault();
   var emailEl = document.getElementById('login-email');
@@ -3860,25 +3881,24 @@ async function doLogin(event){
   if(!email||!email.includes('@')){ mostrarAuthMensaje('login-error','Ingresá un email válido','error'); emailEl.focus(); return; }
   if(!pass){ mostrarAuthMensaje('login-error','Ingresá tu contraseña','error'); passEl.focus(); return; }
   setAuthBusy('login-submit', true, 'Ingresando...');
+  /* Despertar el backend por si estaba dormido (Render free tier) */
+  warmBackendForAuth();
   try {
-    var result = await authFetchJson(BACKEND+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
-    var d = result.data;
-    /* Caso login OK con token: autenticar */
-    if(d.ok && d.token && d.usuario){
-      setAutenticado(d.usuario, d.token);
-      cerrarAuth();
-      setTimeout(function(){ irARol(d.usuario.rol); }, 400);
+    _procesarLoginData(await _loginFetch(email, pass), email, pass);
+  } catch(e){
+    /* Solo cae acá por timeout o falla de red (las credenciales incorrectas
+       vuelven como respuesta normal). El backend pudo estar despertando:
+       avisamos, lo terminamos de despertar y reintentamos UNA vez. */
+    mostrarAuthMensaje('login-error','El servidor estaba inactivo. Reintentando…','warn');
+    try {
+      await warmBackendForAuth();
+      await new Promise(function(r){ setTimeout(r, 1500); });
+      ocultarAuthMensajes();
+      _procesarLoginData(await _loginFetch(email, pass), email, pass);
+    } catch(e2){
+      mostrarAuthMensaje('login-error', e2 && e2.name === 'AbortError' ? 'El servidor tardó demasiado. Esperá unos segundos y volvé a intentar.' : 'Sin conexión al servidor. Volvé a intentar en unos segundos.','error');
     }
-    /* Caso "email no verificado": mostrar pantalla de verificación */
-    else if(d.ok && d.needs_verification || d.code === 'email_not_verified'){
-      mostrarPantallaVerificacion(email, d.message || d.error || 'Tu email todavía no está verificado. Te reenviamos el enlace; revisá tu Gmail antes de ingresar.', pass);
-      return;
-    }
-    /* Cualquier otro error */
-    else {
-      mostrarAuthMensaje('login-error', d.error || 'Error al ingresar', 'error');
-    }
-  } catch(e){ mostrarAuthMensaje('login-error', e && e.name === 'AbortError' ? 'El servidor tardó demasiado. Intentá nuevamente.' : 'Sin conexión al servidor','error'); }
+  }
   finally { setAuthBusy('login-submit', false); }
 }
 
