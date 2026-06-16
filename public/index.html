@@ -1756,12 +1756,16 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
             </div>
             <button onclick="abrirComprarCreditosModal()" style="background:linear-gradient(180deg,#E8A020,#C4692B);color:#0a0704;border:none;border-radius:10px;padding:0 18px;height:42px;font-size:13px;font-weight:800;cursor:pointer;font-family:Outfit,sans-serif;letter-spacing:.2px;flex-shrink:0">Comprar créditos</button>
           </div>
-          <button onclick="abrirReenvioGeneral()" style="width:100%;background:rgba(232,160,32,0.10);color:#E8A020;border:1px solid rgba(232,160,32,0.45);border-radius:10px;height:42px;font-size:13px;font-weight:700;cursor:pointer;font-family:Outfit,sans-serif;letter-spacing:.2px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E8A020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            Reenviar QR a un comprador
+          <button onclick="abrirVentaQrDesdeResumen()" style="width:100%;background:linear-gradient(180deg,#E8A020,#C4692B);color:#0a0704;border:none;border-radius:10px;height:46px;font-size:14px;font-weight:800;cursor:pointer;font-family:Outfit,sans-serif;letter-spacing:.2px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0a0704" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Enviar QR a un comprador
+          </button>
+          <button onclick="abrirReenvioGeneral()" style="width:100%;background:transparent;color:#9A8670;border:1px solid rgba(232,160,32,0.30);border-radius:10px;height:38px;font-size:12px;font-weight:600;cursor:pointer;font-family:Outfit,sans-serif;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:7px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9A8670" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Reenviar un QR ya vendido
           </button>
           <div style="font-size:11px;color:#7d6c52;line-height:1.5">
-            <strong style="color:#9A8670">¿Cómo funciona?</strong> Después de comprar, en cada evento aparece el botón <strong style="color:#E8A020">"Vender QR"</strong>. Lo usás cuando cobraste por afuera (transferencia/efectivo) para enviarle el QR a tu comprador como una entrada normal. Si el comprador no recibió el email, tocá <strong style="color:#E8A020">"Reenviar QR a un comprador"</strong>.
+            <strong style="color:#9A8670">¿Cómo funciona?</strong> Cobrás por transferencia/efectivo y tocás <strong style="color:#E8A020">"Enviar QR a un comprador"</strong>: elegís el evento, cargás el email y se le manda el QR usando tus créditos (1 crédito por QR). Si no le llegó, usás <strong style="color:#E8A020">"Reenviar un QR ya vendido"</strong>.
           </div>
         </div>
       </div>
@@ -3071,7 +3075,7 @@ function chipSel(el,cls){
     Usás un crédito QR prepagado por cada entrada. El comprador recibe su QR como una compra normal, <strong>sin cargo del 12,60%</strong>.
     Saldo actual: <strong id="sell-modal-balance" style="color:var(--t)">0</strong> crédito(s).
   </div>
-  <select id="sell-event" style="display:none"><option value="">Seleccioná un evento</option></select>
+  <div class="fg" id="sell-event-wrap" style="display:none"><label class="fl">Evento</label><select class="fi-sel" id="sell-event" onchange="onSellEventChange()"><option value="">Seleccioná un evento</option></select></div>
   <div class="fg-row"><div class="fg"><label class="fl">Tipo de entrada</label><select class="fi-sel" id="sell-ticket"><option value="">General</option></select></div><div class="fg"><label class="fl">Cantidad</label><input class="fi" id="sell-qty" type="number" min="1" max="20" value="1"></div></div>
   <div class="fg"><label class="fl">Nombre del comprador</label><input class="fi" id="sell-name" type="text" placeholder="Nombre y apellido"></div>
   <div class="fg-row"><div class="fg"><label class="fl">Email</label><input class="fi" id="sell-email" type="email" placeholder="comprador@email.com"></div><div class="fg"><label class="fl">DNI (opcional)</label><input class="fi" id="sell-dni" type="text" inputmode="numeric" placeholder="Sin puntos"></div></div>
@@ -6004,6 +6008,27 @@ function cerrarSellModal(){
   var qty = document.getElementById('sell-qty'); if(qty) qty.value = '1';
 }
 
+/* Pobla el select de tipos de entrada del modal Vender QR a partir de un evento */
+function _poblarTiposSell(ev){
+  var ticketSel = document.getElementById('sell-ticket');
+  if(!ticketSel) return;
+  var tipos = (ev && ev.tipos_entrada) || [];
+  ticketSel.innerHTML = tipos.length
+    ? tipos.map(function(t){ return '<option value="'+escapeHtml(String(t.id))+'">'+escapeHtml(t.nombre || 'General')+'</option>'; }).join('')
+    : '<option value="">General</option>';
+}
+
+/* Cuando el organizador cambia el evento en el selector (flujo desde Resumen) */
+function onSellEventChange(){
+  var id = document.getElementById('sell-event')?.value || '';
+  var store = ejLoadStore();
+  var ev = (store.myEvents || []).find(function(e){ return String(e.id) === String(id); });
+  var nombreEl = document.getElementById('sell-modal-evento-nombre');
+  if(nombreEl) nombreEl.textContent = ev ? (ev.name || '') : '';
+  _poblarTiposSell(ev);
+}
+
+/* Abre "Vender QR" desde un evento puntual (botón en Mis eventos) — evento fijo */
 function prepararVentaQrCredit(eventId){
   if(!requireAccount('Necesitas iniciar sesión.')) return;
   /* Recargar saldo antes de abrir */
@@ -6011,23 +6036,45 @@ function prepararVentaQrCredit(eventId){
   var store = ejLoadStore();
   var ev = (store.myEvents || []).find(function(e){ return String(e.id) === String(eventId); });
   if(!ev){ alert('Evento no encontrado.'); return; }
+  var wrap = document.getElementById('sell-event-wrap');
+  if(wrap) wrap.style.display = 'none'; /* evento fijo: ocultar selector */
   var sel = document.getElementById('sell-event');
   if(sel) sel.value = String(eventId);
   var nombreEl = document.getElementById('sell-modal-evento-nombre');
   if(nombreEl) nombreEl.textContent = ev.name || '';
-  /* Poblar tipos de entrada */
-  var ticketSel = document.getElementById('sell-ticket');
-  var tipos = ev.tipos_entrada || [];
-  if(ticketSel){
-    ticketSel.innerHTML = tipos.length
-      ? tipos.map(function(t){ return '<option value="'+escapeHtml(String(t.id))+'">'+escapeHtml(t.nombre || 'General')+'</option>'; }).join('')
-      : '<option value="">General</option>';
-  }
+  _poblarTiposSell(ev);
   var note = document.getElementById('sell-note');
   if(note) note.textContent = '';
   abrirSellModal();
   var name = document.getElementById('sell-name');
   if(name) setTimeout(function(){ name.focus(); }, 380);
+}
+
+/* Abre "Vender QR" desde el Resumen (card QR Prepagos) — muestra selector de evento */
+function abrirVentaQrDesdeResumen(){
+  if(!requireAccount('Necesitas iniciar sesión.')) return;
+  cargarQrCreditsStatus();
+  var store = ejLoadStore();
+  var eventos = (store.myEvents || []).filter(function(e){ return e.status !== 'draft'; });
+  if(!eventos.length){
+    alert('Primero publicá un evento para poder venderle entradas a un comprador.');
+    return;
+  }
+  var wrap = document.getElementById('sell-event-wrap');
+  var sel = document.getElementById('sell-event');
+  if(sel){
+    sel.innerHTML = '<option value="">Seleccioná un evento</option>' + eventos.map(function(e){
+      return '<option value="'+escapeHtml(String(e.id))+'">'+escapeHtml(e.name || 'Evento')+'</option>';
+    }).join('');
+    sel.value = '';
+  }
+  if(wrap) wrap.style.display = 'block'; /* mostrar selector */
+  var nombreEl = document.getElementById('sell-modal-evento-nombre');
+  if(nombreEl) nombreEl.textContent = '';
+  _poblarTiposSell(null);
+  var note = document.getElementById('sell-note');
+  if(note) note.textContent = '';
+  abrirSellModal();
 }
 
 async function enviarVentaQrCredit(event){
@@ -6043,6 +6090,7 @@ async function enviarVentaQrCredit(event){
     dni: document.getElementById('sell-dni')?.value.trim() || '',
     precio: document.getElementById('sell-price')?.value || '0'
   };
+  if(!payload.evento_id){ if(note){ note.style.color = '#C44040'; note.textContent = 'Seleccioná un evento.'; } return; }
   if(!payload.nombre){ if(note){ note.style.color = '#C44040'; note.textContent = 'Ingresá el nombre del comprador.'; } return; }
   if(!payload.email || !payload.email.includes('@')){ if(note){ note.style.color = '#C44040'; note.textContent = 'Ingresá un email válido.'; } return; }
   var cantidadNum = parseInt(payload.cantidad, 10) || 1;
