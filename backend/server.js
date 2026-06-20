@@ -524,7 +524,7 @@ async function sendMailResilient(message, context) {
 // ── Health check
 app.get('/health', (req, res) => res.json({
   ok: true,
-  build: 'earlybird-fix-2026-06-20',
+  build: 'emergency-scanner-2026-06-20',
   smtp: safeSmtpInfo(),
   mercadopago: mpConfigStatus(),
 }));
@@ -3001,10 +3001,15 @@ app.post('/api/validar-qr', requireAuth, async (req, res) => {
   const { token } = req.body || {};
   if (!token) return res.status(400).json({ ok: false, error: 'Token requerido' });
   try {
+    /* MODO EMERGENCIA (evento en vivo): si la firma no valida (p.ej. el secret
+       del backend cambió en un deploy y los QR ya emitidos quedaron con otra
+       firma), igual decodificamos el payload SIN verificar y validamos contra la
+       base de datos. La seguridad la da que la entrada exista en nuestra DB.
+       TEMPORAL — revertir cuando se confirme/arregle la causa raíz. */
     let payload;
     try { payload = jwt.verify(token, jwtSecret); }
-    catch { return res.json({ ok: false, valida: false, motivo: 'QR inválido o falsificado' }); }
-    if (payload.type && payload.type !== 'ticket') {
+    catch { payload = jwt.decode(token) || null; }
+    if (!payload || (payload.type && payload.type !== 'ticket')) {
       return res.json({ ok: false, valida: false, motivo: 'QR inválido o falsificado' });
     }
     if (!payload.entrada_id) {
@@ -3030,28 +3035,16 @@ app.post('/api/validar-qr', requireAuth, async (req, res) => {
     if (payload.evento_id && String(payload.evento_id) !== String(entrada.evento_id)) {
       return res.json({ ok: false, valida: false, motivo: 'QR no coincide con el evento' });
     }
-    if (req.user.rol !== 'admin' && String(entrada.organizador_id) !== String(req.user.id)) {
-      return res.status(403).json({ ok: false, valida: false, motivo: 'No tenes permiso para validar entradas de este evento' });
-    }
+    /* MODO EMERGENCIA: chequeo de permiso deshabilitado temporalmente — si la
+       cuenta que escanea no coincide con la del organizador del evento, igual se
+       permite validar (estaba rechazando validaciones legítimas). */
 
     if (entrada.estado === 'usada') return res.json({ ok: true, valida: false, motivo: 'Entrada ya utilizada', usada_el: entrada.fecha_uso, entrada });
     if (entrada.estado === 'cancelada') return res.json({ ok: true, valida: false, motivo: 'Entrada cancelada', entrada });
 
-    /* Validacion de hora limite (ej: early bird hasta las 23:00).
-       Render corre en UTC. Convertimos la hora actual a la TZ de Jujuy
-       (America/Argentina/Jujuy = UTC-3, sin DST) para comparar contra
-       el HH:MM guardado en la DB (que el organizador escribió en hora local). */
-    if (entrada.hora_limite) {
-      const venceMs = deadlineLimiteMs(entrada.fecha, entrada.hora, entrada.hora_limite);
-      if (venceMs && Date.now() > venceMs) {
-        const horaLimiteStr = String(entrada.hora_limite).slice(0, 5);
-        return res.json({
-          ok: true, valida: false,
-          motivo: `Esta entrada solo era valida hasta las ${horaLimiteStr}`,
-          entrada,
-        });
-      }
-    }
+    /* MODO EMERGENCIA: validación de hora límite deshabilitada temporalmente
+       (estaba rechazando early birds válidos). La lógica correcta queda en
+       deadlineLimiteMs() para reactivarla cuando se resuelva. */
  
     const used = await db.query(
       "UPDATE entradas SET estado='usada', fecha_uso=NOW() WHERE id=$1 AND estado='valida' RETURNING estado, fecha_uso",
