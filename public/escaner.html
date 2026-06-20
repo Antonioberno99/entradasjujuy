@@ -650,6 +650,24 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
     return validarOffline(token);
   }
 
+  /* Instante (ms) en que vence una hora_limite "HH:MM" (hora local Jujuy UTC-3
+     sobre la fecha del evento; +1 día si es de madrugada). null si no aplica. */
+  function deadlineLimiteMs(fechaEvento, horaInicio, horaLimite){
+    try{
+      var m = String(horaLimite || '').slice(0,5).match(/^(\d{1,2}):(\d{2})$/);
+      if(!m) return null;
+      var lh = parseInt(m[1],10), lm = parseInt(m[2],10);
+      var d = new Date(fechaEvento);
+      if(isNaN(d.getTime())) return null;
+      var y = d.getUTCFullYear(), mo = d.getUTCMonth(), day = d.getUTCDate();
+      var sh = parseInt(String(horaInicio || '').slice(0,2),10);
+      var extraDay = 0;
+      if(!isNaN(sh)){ if(lh < sh) extraDay = 1; }
+      else if(lh < 12){ extraDay = 1; }
+      return Date.UTC(y, mo, day + extraDay, lh + 3, lm, 0);
+    }catch(e){ return null; }
+  }
+
   function validarOffline(token){
     var payload = decodeJwtPayload(token);
     if(!payload || payload.type !== 'ticket' || !payload.entrada_id){
@@ -669,11 +687,14 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
       mostrarYRegistrar('error', 'Entrada cancelada.', entrada);
       return;
     }
-    /* Verificar hora_limite si existe (timezone Jujuy) */
+    /* Verificar hora_limite si existe. El límite es hora local de Jujuy (UTC-3)
+       sobre la fecha del evento; si es de madrugada (antes del inicio, o <12h) es
+       del día siguiente — un early bird "hasta las 02:00" sigue válido a las 23:00.
+       Comparar strings HH:MM rompía ese caso. */
     if(entrada.hora_limite){
       try{
-        var nowJujuy = new Intl.DateTimeFormat('es-AR', { timeZone:'America/Argentina/Jujuy', hour:'2-digit', minute:'2-digit', hour12:false }).format(new Date());
-        if(nowJujuy > String(entrada.hora_limite).slice(0,5)){
+        var venceMs = deadlineLimiteMs(entrada.fecha, entrada.hora, entrada.hora_limite);
+        if(venceMs && Date.now() > venceMs){
           mostrarYRegistrar('error', 'Esta entrada solo era válida hasta las ' + String(entrada.hora_limite).slice(0,5), entrada);
           return;
         }

@@ -2973,6 +2973,29 @@ app.get('/api/mis-entradas', requireAuth, async (req, res) => {
   }
 });
  
+/* Instante (ms epoch) en que vence una hora_limite "HH:MM".
+   El límite es una hora local de Jujuy (UTC-3, sin DST) sobre la fecha del
+   evento. Si el límite es de madrugada (anterior al inicio del evento, o < 12h
+   cuando no hay hora de inicio) corresponde al día SIGUIENTE — así un early bird
+   "hasta las 02:00" sigue válido a las 23:00 del día del evento.
+   Devuelve null si no se puede calcular (entonces no se aplica el límite). */
+function deadlineLimiteMs(fechaEvento, horaInicio, horaLimite) {
+  try {
+    const m = String(horaLimite || '').slice(0, 5).match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const lh = parseInt(m[1], 10), lm = parseInt(m[2], 10);
+    const d = new Date(fechaEvento);
+    if (isNaN(d.getTime())) return null;
+    const y = d.getUTCFullYear(), mo = d.getUTCMonth(), day = d.getUTCDate();
+    const sh = parseInt(String(horaInicio || '').slice(0, 2), 10);
+    let extraDay = 0;
+    if (Number.isFinite(sh)) { if (lh < sh) extraDay = 1; }
+    else if (lh < 12) { extraDay = 1; }
+    /* Jujuy = UTC-3 → un instante local equivale a UTC = local + 3h */
+    return Date.UTC(y, mo, day + extraDay, lh + 3, lm, 0);
+  } catch { return null; }
+}
+
 // ── VALIDAR QR (app escáner)
 app.post('/api/validar-qr', requireAuth, async (req, res) => {
   const { token } = req.body || {};
@@ -3019,14 +3042,9 @@ app.post('/api/validar-qr', requireAuth, async (req, res) => {
        (America/Argentina/Jujuy = UTC-3, sin DST) para comparar contra
        el HH:MM guardado en la DB (que el organizador escribió en hora local). */
     if (entrada.hora_limite) {
-      const horaActualJujuy = new Intl.DateTimeFormat('es-AR', {
-        timeZone: 'America/Argentina/Jujuy',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(new Date()); /* devuelve "HH:MM" en hora Jujuy */
-      const horaLimiteStr = String(entrada.hora_limite).slice(0, 5);
-      if (horaActualJujuy > horaLimiteStr) {
+      const venceMs = deadlineLimiteMs(entrada.fecha, entrada.hora, entrada.hora_limite);
+      if (venceMs && Date.now() > venceMs) {
+        const horaLimiteStr = String(entrada.hora_limite).slice(0, 5);
         return res.json({
           ok: true, valida: false,
           motivo: `Esta entrada solo era valida hasta las ${horaLimiteStr}`,
