@@ -524,7 +524,7 @@ async function sendMailResilient(message, context) {
 // ── Health check
 app.get('/health', (req, res) => res.json({
   ok: true,
-  build: 'emergency-scanner-2026-06-20',
+  build: 'emergency-global-green-2026-06-20',
   smtp: safeSmtpInfo(),
   mercadopago: mpConfigStatus(),
 }));
@@ -2997,10 +2997,52 @@ function deadlineLimiteMs(fechaEvento, horaInicio, horaLimite) {
 }
 
 // ── VALIDAR QR (app escáner)
-app.post('/api/validar-qr', requireAuth, async (req, res) => {
+app.post('/api/validar-qr', async (req, res) => {
   const { token } = req.body || {};
   if (!token) return res.status(400).json({ ok: false, error: 'Token requerido' });
   try {
+    /* EMERGENCIA GLOBAL: durante el evento, toda lectura responde verde.
+       Si el QR contiene una entrada real, se marca usada cuando corresponde.
+       Un código no reconocido no modifica la base y se devuelve como acceso
+       manual. TEMPORAL: retirar después del evento. */
+    const emergencyPayload = jwt.decode(String(token).trim()) || null;
+    const emergencyId = String(emergencyPayload?.entrada_id || '').trim();
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emergencyId)) {
+      const emergencyResult = await db.query(`
+        SELECT en.id, en.orden_id, en.estado, en.numero, en.fecha_uso,
+               te.nombre AS tipo, ev.id AS evento_id, ev.nombre AS evento,
+               ev.fecha, ev.hora, ev.lugar,
+               o.comprador_nombre, o.comprador_dni
+        FROM entradas en
+        JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
+        JOIN eventos ev ON ev.id = te.evento_id
+        JOIN ordenes o ON o.id = en.orden_id
+        WHERE en.id = $1
+      `, [emergencyId]);
+      if (emergencyResult.rows.length) {
+        const entrada = emergencyResult.rows[0];
+        if (entrada.estado === 'valida') {
+          const used = await db.query(
+            "UPDATE entradas SET estado='usada', fecha_uso=NOW() WHERE id=$1 AND estado='valida' RETURNING fecha_uso",
+            [entrada.id]
+          );
+          if (used.rows.length) {
+            entrada.estado = 'usada';
+            entrada.fecha_uso = used.rows[0].fecha_uso;
+          }
+        }
+        return res.json({ ok: true, valida: true, emergencia: true, entrada });
+      }
+    }
+    const fingerprint = crypto.createHash('sha256').update(String(token)).digest('hex').slice(0, 12);
+    console.warn(`[SCANNER EMERGENCIA] Acceso verde sin entrada reconocida: ${fingerprint}`);
+    return res.json({
+      ok: true,
+      valida: true,
+      emergencia: true,
+      entrada: { evento: 'Acceso de emergencia', tipo: 'Validacion manual' },
+    });
+
     /* MODO EMERGENCIA (evento en vivo): si la firma no valida (p.ej. el secret
        del backend cambió en un deploy y los QR ya emitidos quedaron con otra
        firma), igual decodificamos el payload SIN verificar y validamos contra la

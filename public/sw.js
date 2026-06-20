@@ -5,7 +5,7 @@
  * - Cache-first para assets estáticos
  */
 
-const CACHE_VERSION = 'ej-scanner-v4-emergency-door';
+const CACHE_VERSION = 'ej-scanner-v5-global-green';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
