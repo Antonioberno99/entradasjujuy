@@ -524,7 +524,7 @@ async function sendMailResilient(message, context) {
 // ── Health check
 app.get('/health', (req, res) => res.json({
   ok: true,
-  build: 'text-cleanup-delete-events-v1',
+  build: 'earlybird-fix-2026-06-20',
   smtp: safeSmtpInfo(),
   mercadopago: mpConfigStatus(),
 }));

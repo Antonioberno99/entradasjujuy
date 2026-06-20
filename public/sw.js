@@ -5,7 +5,7 @@
  * - Cache-first para assets estáticos
  */
 
-const CACHE_VERSION = 'ej-scanner-v2';
+const CACHE_VERSION = 'ej-scanner-v3';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -61,6 +61,23 @@ self.addEventListener('fetch', (event) => {
           headers: { 'Content-Type': 'application/json' },
         })
       )
+    );
+    return;
+  }
+
+  /* HTML / navegación (el shell del escáner): NETWORK-FIRST para no quedar
+     pegado a una versión vieja cacheada. Con red, baja la última y actualiza el
+     cache; sin red, sirve la última versión guardada. */
+  const isHtml = req.mode === 'navigate' || url.pathname === '/escaner.html' || url.pathname.endsWith('.html');
+  if (isHtml) {
+    event.respondWith(
+      fetch(req).then((res) => {
+        if (res && res.ok && url.origin === self.location.origin) {
+          const clone = res.clone();
+          caches.open(SHELL_CACHE).then((cache) => cache.put('/escaner.html', clone)).catch(() => {});
+        }
+        return res;
+      }).catch(() => caches.match(req).then((c) => c || caches.match('/escaner.html')))
     );
     return;
   }
