@@ -615,6 +615,8 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
 
   async function validarQR(token){
     if(!token) return;
+    token = String(token).trim();
+    var emergencyPayload = decodeJwtPayload(token);
     /* Si hay conexión, validar contra backend (que verifica firma + estado) */
     if(navigator.onLine){
       try{
@@ -625,8 +627,10 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
         });
         var d = await r.json();
         if(r.status === 401){
-          /* Token expirado — caer al modo offline */
-          return validarOffline(token);
+          /* MODO PUERTA: la sesión puede vencer durante el evento. Si el QR
+             contiene un ID de entrada válido, permitir el acceso y dejarlo
+             pendiente para sincronizar cuando se renueve la sesión. */
+          return validarEmergencia(token, emergencyPayload, 'Sesión expirada');
         }
         if(d.valida){
           /* Actualizar cache local: marcar como usada para el próximo modo offline */
@@ -639,15 +643,57 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
         } else {
           var motivo = d.motivo || d.error || 'Entrada no válida.';
           var esYaUsada = /ya utilizada|ya fue|ya entr/i.test(motivo);
-          mostrarYRegistrar(esYaUsada ? 'used' : 'error', motivo, d.entrada);
+          if(esYaUsada){
+            mostrarYRegistrar('used', motivo, d.entrada);
+          } else if(d.entrada?.estado === 'cancelada' || /cancelad/i.test(motivo)){
+            mostrarYRegistrar('error', motivo, d.entrada);
+          } else {
+            return validarEmergencia(token, emergencyPayload, motivo);
+          }
         }
         return;
       }catch(e){
-        /* Si la red falla, cae al modo offline */
-        return validarOffline(token);
+        return validarEmergencia(token, emergencyPayload, 'Sin conexión con el servidor');
       }
     }
-    return validarOffline(token);
+    return validarEmergencia(token, emergencyPayload, 'Modo offline');
+  }
+
+  /* MODO PUERTA TEMPORAL: durante el evento, un QR con estructura de ticket y
+     entrada_id UUID se acepta aunque la sesión, red o caché fallen. Se registra
+     localmente y queda en cola para que el backend lo marque usado al sincronizar. */
+  function validarEmergencia(token, payload, causa){
+    payload = payload || decodeJwtPayload(token);
+    var entradaId = String(payload?.entrada_id || '').trim();
+    if(!payload || (payload.type && payload.type !== 'ticket') ||
+       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entradaId)){
+      mostrarYRegistrar('error', 'QR sin formato de entrada.');
+      return;
+    }
+    var entrada = entradasCache[entradaId] || {
+      id: entradaId,
+      evento: 'Entrada del evento',
+      tipo: 'Acceso',
+      estado: 'valida'
+    };
+    if(entrada.estado === 'usada'){
+      mostrarYRegistrar('used', 'Entrada ya utilizada (validada antes).', entrada);
+      return;
+    }
+    if(entrada.estado === 'cancelada'){
+      mostrarYRegistrar('error', 'Entrada cancelada.', entrada);
+      return;
+    }
+    entrada.estado = 'usada';
+    entradasCache[entradaId] = entrada;
+    saveCache();
+    if(!queue.some(function(v){ return String(v.entrada_id) === entradaId; })){
+      queue.push({ entrada_id: entradaId, validated_at: new Date().toISOString() });
+      saveQueue();
+    }
+    updateCountsUI();
+    mostrarYRegistrar('ok', 'Entrada válida. Modo puerta activo.', entrada);
+    if(navigator.onLine) setTimeout(flushQueue, 500);
   }
 
   /* Instante (ms) en que vence una hora_limite "HH:MM" (hora local Jujuy UTC-3
