@@ -126,7 +126,19 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
   padding:0 16px;height:52px;
   background:var(--nav-bg);backdrop-filter:blur(16px);
   border-bottom:1px solid var(--b1);
-  position:sticky;top:58px;z-index:800;overflow:visible;
+  position:sticky;top:0;z-index:800;overflow:visible;
+}
+/* Header de la home: 3 zonas (menú ☰ · nombre centrado · ingresar) */
+.nav-home{
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+  height:62px;gap:8px;
+}
+.nav-home .nav-side{display:flex;align-items:center;min-width:0}
+.nav-home .nav-side-l{justify-self:start}
+.nav-home .nav-side-r{justify-self:end;gap:8px}
+.nav-home .nav-center{justify-self:center;text-align:center;min-width:0}
+.nav-home .nav-center .logo{
+  font-size:clamp(22px,6.6vw,30px);line-height:1;white-space:nowrap;
 }
 .logo{font-family:'Fraunces',serif;font-size:17px;font-weight:900;letter-spacing:-0.02em;cursor:pointer;flex-shrink:0}
 .logo.lt{color:var(--t)}.logo.lt span{color:var(--c)}
@@ -709,7 +721,8 @@ footer{background:#0a0704;border-top:1px solid var(--b1);padding:20px 16px}
   .ptab{min-width:120px;font-size:11px;padding:0 20px;flex-direction:row;gap:8px}
   .ptab-lbl{font-size:11px;text-transform:none;letter-spacing:0}
   .ptab-icon{width:22px;height:22px;flex-shrink:0}
-  .nav{padding:0 40px;height:60px;top:58px}
+  .nav{padding:0 40px;height:60px;top:0}
+  .nav-home{height:68px}
   .hero-body{padding:80px 48px;max-width:620px}
   .hero-h1{font-size:clamp(64px,9vw,108px)}
   .hero-btns{flex-direction:row}
@@ -1170,7 +1183,7 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
 
 .nav{
   height:58px;
-  top:48px;
+  top:0;
 }
 .nav-r{gap:10px}
 .bcta,
@@ -1347,16 +1360,8 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
      ================================================================ -->
 <div id="portal-publico" class="portal on">
 
-  <nav class="nav">
-    <div class="brand-wrap"><div class="logo lt" onclick="irAlInicio()" style="font-size:28px">Entradas<span>Jujuy</span></div></div>
-    <div class="nav-r">
-      <!-- Botón Ingresar: visible cuando NO hay sesión activa -->
-      <button id="btn-ingresar" class="bcta t" onclick="abrirAuth()">Ingresar</button>
-      <!-- Botón Usuario: visible cuando hay sesión. Muestra nombre, abre el menú al tocarlo -->
-      <button id="btn-usuario" type="button" onclick="toggleMainMenu(event)" aria-label="Mi cuenta" style="display:none;align-items:center;gap:8px;height:44px;padding:0 14px 0 10px;border-radius:999px;border:1px solid var(--b2);background:rgba(255,255,255,.04);color:var(--t1);font-family:Outfit,sans-serif;font-weight:600;font-size:13px;cursor:pointer">
-        <span style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#C4692B,#E8A020);display:flex;align-items:center;justify-content:center;color:#0a0704;font-weight:800;font-size:12px;flex-shrink:0" id="nav-avatar">U</span>
-        <span id="nav-nombre" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Usuario</span>
-      </button>
+  <nav class="nav nav-home">
+    <div class="nav-side nav-side-l">
       <div class="user-menu-wrap">
         <button id="btn-menu" class="menu-btn" type="button" onclick="toggleMainMenu(event)" aria-label="Abrir menu" aria-controls="main-menu" aria-expanded="false">
           <span></span><span></span><span></span>
@@ -1380,6 +1385,14 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
           <button id="menu-logout-action" class="menu-item" type="button" onclick="cerrarMainMenu(); logout()" style="display:none;color:var(--t)">Salir <small>Sesión</small></button>
         </div>
       </div>
+    </div>
+    <div class="nav-center"><div class="logo lt" onclick="irAlInicio()">Entradas<span>Jujuy</span></div></div>
+    <div class="nav-side nav-side-r">
+      <button id="btn-ingresar" class="bcta t" onclick="abrirAuth()">Ingresar</button>
+      <button id="btn-usuario" type="button" onclick="toggleMainMenu(event)" aria-label="Mi cuenta" style="display:none;align-items:center;gap:8px;height:40px;padding:0 12px 0 9px;border-radius:999px;border:1px solid var(--b2);background:rgba(255,255,255,.04);color:var(--t1);font-family:Outfit,sans-serif;font-weight:600;font-size:13px;cursor:pointer">
+        <span style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#C4692B,#E8A020);display:flex;align-items:center;justify-content:center;color:#0a0704;font-weight:800;font-size:12px;flex-shrink:0" id="nav-avatar">U</span>
+        <span id="nav-nombre" style="max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Usuario</span>
+      </button>
     </div>
   </nav>
 
