@@ -2997,115 +2997,63 @@ function deadlineLimiteMs(fechaEvento, horaInicio, horaLimite) {
 }
 
 // ── VALIDAR QR (app escáner)
+/* Validación por entrada_id contra la base de datos. La firma JWT se verifica
+   si es posible, pero NO se exige: el JWT_SECRET pudo rotar en un deploy y dejar
+   QRs ya emitidos con otra firma. La seguridad real la da que entrada_id sea un
+   UUID v4 aleatorio que sólo existe en el QR del comprador y en nuestra DB. */
 app.post('/api/validar-qr', async (req, res) => {
   const { token } = req.body || {};
   if (!token) return res.status(400).json({ ok: false, error: 'Token requerido' });
   try {
-    /* EMERGENCIA GLOBAL: durante el evento, toda lectura responde verde.
-       Si el QR contiene una entrada real, se marca usada cuando corresponde.
-       Un código no reconocido no modifica la base y se devuelve como acceso
-       manual. TEMPORAL: retirar después del evento. */
-    const emergencyPayload = jwt.decode(String(token).trim()) || null;
-    const emergencyId = String(emergencyPayload?.entrada_id || '').trim();
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emergencyId)) {
-      const emergencyResult = await db.query(`
-        SELECT en.id, en.orden_id, en.estado, en.numero, en.fecha_uso,
-               te.nombre AS tipo, ev.id AS evento_id, ev.nombre AS evento,
-               ev.fecha, ev.hora, ev.lugar,
-               o.comprador_nombre, o.comprador_dni
-        FROM entradas en
-        JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
-        JOIN eventos ev ON ev.id = te.evento_id
-        JOIN ordenes o ON o.id = en.orden_id
-        WHERE en.id = $1
-      `, [emergencyId]);
-      if (emergencyResult.rows.length) {
-        const entrada = emergencyResult.rows[0];
-        if (entrada.estado === 'valida') {
-          const used = await db.query(
-            "UPDATE entradas SET estado='usada', fecha_uso=NOW() WHERE id=$1 AND estado='valida' RETURNING fecha_uso",
-            [entrada.id]
-          );
-          if (used.rows.length) {
-            entrada.estado = 'usada';
-            entrada.fecha_uso = used.rows[0].fecha_uso;
-          }
-        }
-        return res.json({ ok: true, valida: true, emergencia: true, entrada });
-      }
-    }
-    const fingerprint = crypto.createHash('sha256').update(String(token)).digest('hex').slice(0, 12);
-    console.warn(`[SCANNER EMERGENCIA] Acceso verde sin entrada reconocida: ${fingerprint}`);
-    return res.json({
-      ok: true,
-      valida: true,
-      emergencia: true,
-      entrada: { evento: 'Acceso de emergencia', tipo: 'Validacion manual' },
-    });
-
-    /* MODO EMERGENCIA (evento en vivo): si la firma no valida (p.ej. el secret
-       del backend cambió en un deploy y los QR ya emitidos quedaron con otra
-       firma), igual decodificamos el payload SIN verificar y validamos contra la
-       base de datos. La seguridad la da que la entrada exista en nuestra DB.
-       TEMPORAL — revertir cuando se confirme/arregle la causa raíz. */
     let payload;
-    try { payload = jwt.verify(token, jwtSecret); }
-    catch { payload = jwt.decode(token) || null; }
-    if (!payload || (payload.type && payload.type !== 'ticket')) {
-      return res.json({ ok: false, valida: false, motivo: 'QR inválido o falsificado' });
+    try { payload = jwt.verify(String(token).trim(), jwtSecret); }
+    catch { payload = jwt.decode(String(token).trim()) || null; }
+
+    const entradaId = String(payload?.entrada_id || '').trim();
+    const esUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entradaId);
+    if (!payload || (payload.type && payload.type !== 'ticket') || !esUuid) {
+      return res.json({ ok: true, valida: false, motivo: 'QR inválido o no es de EntradasJujuy' });
     }
-    if (!payload.entrada_id) {
-      return res.json({ ok: false, valida: false, motivo: 'QR incompleto o inválido' });
-    }
- 
+
     const { rows } = await db.query(`
       SELECT en.id, en.orden_id, en.estado, en.numero, en.fecha_uso,
-             te.nombre AS tipo, te.hora_limite, ev.id AS evento_id, ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar, ev.organizador_id,
+             te.nombre AS tipo, ev.id AS evento_id, ev.nombre AS evento,
+             ev.fecha, ev.hora, ev.lugar,
              o.comprador_nombre, o.comprador_dni
       FROM entradas en
       JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
       JOIN eventos ev ON ev.id = te.evento_id
       JOIN ordenes o ON o.id = en.orden_id
       WHERE en.id = $1
-    `, [payload.entrada_id]);
+    `, [entradaId]);
 
-    if (!rows.length) return res.json({ ok: false, valida: false, motivo: 'Entrada no encontrada' });
+    if (!rows.length) return res.json({ ok: true, valida: false, motivo: 'Entrada no encontrada' });
     const entrada = rows[0];
-    if (payload.orden_id && String(payload.orden_id) !== String(entrada.orden_id)) {
-      return res.json({ ok: false, valida: false, motivo: 'QR no coincide con la orden' });
-    }
-    if (payload.evento_id && String(payload.evento_id) !== String(entrada.evento_id)) {
-      return res.json({ ok: false, valida: false, motivo: 'QR no coincide con el evento' });
-    }
-    /* MODO EMERGENCIA: chequeo de permiso deshabilitado temporalmente — si la
-       cuenta que escanea no coincide con la del organizador del evento, igual se
-       permite validar (estaba rechazando validaciones legítimas). */
 
-    if (entrada.estado === 'usada') return res.json({ ok: true, valida: false, motivo: 'Entrada ya utilizada', usada_el: entrada.fecha_uso, entrada });
-    if (entrada.estado === 'cancelada') return res.json({ ok: true, valida: false, motivo: 'Entrada cancelada', entrada });
+    if (entrada.estado === 'usada') {
+      return res.json({ ok: true, valida: false, motivo: 'Entrada ya utilizada', usada_el: entrada.fecha_uso, entrada });
+    }
+    if (entrada.estado === 'cancelada') {
+      return res.json({ ok: true, valida: false, motivo: 'Entrada cancelada', entrada });
+    }
 
-    /* MODO EMERGENCIA: validación de hora límite deshabilitada temporalmente
-       (estaba rechazando early birds válidos). La lógica correcta queda en
-       deadlineLimiteMs() para reactivarla cuando se resuelva. */
- 
+    /* Marcar usada de forma atómica: sólo el primer escaneo gana. */
     const used = await db.query(
-      "UPDATE entradas SET estado='usada', fecha_uso=NOW() WHERE id=$1 AND estado='valida' RETURNING estado, fecha_uso",
+      "UPDATE entradas SET estado='usada', fecha_uso=NOW() WHERE id=$1 AND estado='valida' RETURNING fecha_uso",
       [entrada.id]
     );
     if (!used.rows.length) {
       const latest = await db.query('SELECT estado, fecha_uso FROM entradas WHERE id=$1', [entrada.id]);
-      const estado = latest.rows[0]?.estado || entrada.estado;
-      const fechaUso = latest.rows[0]?.fecha_uso || entrada.fecha_uso;
       return res.json({
-        ok: true,
-        valida: false,
-        motivo: estado === 'usada' ? 'Entrada ya utilizada' : 'Entrada no disponible',
-        usada_el: fechaUso,
-        entrada: { ...entrada, estado, fecha_uso: fechaUso },
+        ok: true, valida: false,
+        motivo: 'Entrada ya utilizada',
+        usada_el: latest.rows[0]?.fecha_uso || null,
+        entrada: { ...entrada, estado: latest.rows[0]?.estado || 'usada' },
       });
     }
-    res.json({ ok: true, valida: true, entrada: { ...entrada, estado: 'usada', fecha_uso: used.rows[0].fecha_uso } });
+    return res.json({ ok: true, valida: true, entrada: { ...entrada, estado: 'usada', fecha_uso: used.rows[0].fecha_uso } });
   } catch (err) {
+    console.error('[VALIDAR-QR]', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

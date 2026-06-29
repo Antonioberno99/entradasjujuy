@@ -616,7 +616,39 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
   async function validarQR(token){
     if(!token) return;
     token = String(token).trim();
-    return validarVerdeGlobal(token);
+    /* Online: el backend valida contra la base y marca la entrada usada.
+       Offline o si falla la red: validamos contra la caché descargada. */
+    if(navigator.onLine && getToken()){
+      try{
+        var r = await fetch(API_BASE + '/api/validar-qr', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + getToken() },
+          body: JSON.stringify({ token: token })
+        });
+        var d = await r.json();
+        if(d && typeof d.valida !== 'undefined'){
+          aplicarResultadoBackend(d);
+          return;
+        }
+      }catch(e){ /* sin red: cae a validación offline */ }
+    }
+    validarOffline(token);
+  }
+
+  /* Mapea la respuesta del backend (verde / ya usada / rechazada) a la UI y
+     mantiene la caché local para que un re-escaneo offline también la marque. */
+  function aplicarResultadoBackend(d){
+    var entrada = d.entrada || null;
+    var entradaId = entrada && entrada.id ? String(entrada.id) : '';
+    if(d.valida){
+      if(entradaId){ entradasCache[entradaId] = Object.assign({}, entrada, { estado:'usada' }); saveCache(); }
+      updateCountsUI();
+      mostrarYRegistrar('ok', 'Entrada válida. Acceso habilitado.', entrada);
+    } else {
+      var yaUsada = /utiliz|usada/i.test(d.motivo || '');
+      if(entradaId && entrada){ entradasCache[entradaId] = entrada; saveCache(); }
+      mostrarYRegistrar(yaUsada ? 'used' : 'error', d.motivo || (yaUsada ? 'Entrada ya utilizada.' : 'Entrada no válida.'), entrada);
+    }
   }
 
   /* EMERGENCIA GLOBAL: toda lectura se muestra verde sin esperar red, sesión,
