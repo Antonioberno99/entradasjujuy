@@ -1316,10 +1316,9 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
 <body>
 
 <!-- ========================
-     BARRA DE PORTALES - rediseñada
-     Iconos SVG inline + texto, colores diferenciados
+     BARRA DE PORTALES - oculta: la navegación ahora vive en el menú ☰
      ======================== -->
-<div class="pbar">
+<div class="pbar" style="display:none">
 
   <button class="ptab on-t" id="pt-publico" onclick="GO('publico')">
     <div class="ptab-icon">
@@ -1337,21 +1336,6 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
     <div class="ptab-lbl">Organizar</div>
   </button>
 
-  <button class="ptab" id="pt-artistas" onclick="GO('artistas')">
-    <div class="ptab-icon">
-      <!-- Icono: nota musical -->
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M6 3v7.5a2.5 2.5 0 11-1-2V5l6-1.5V11a2.5 2.5 0 11-1-2V3.5L6 3z" opacity=".8"/></svg>
-    </div>
-    <div class="ptab-lbl">Artistas</div>
-  </button>
-
-  <button class="ptab" id="pt-servicios" onclick="GO('servicios')">
-    <div class="ptab-icon">
-      <!-- Icono: herramienta -->
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M9.5 1.5a4 4 0 00-3.8 5.2L2 10.5l-.5.5a1.5 1.5 0 002 2l.5-.5 3.8-3.7a4 4 0 105.2-7.3A4 4 0 009.5 1.5zm0 1.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" opacity=".8"/></svg>
-    </div>
-    <div class="ptab-lbl">Servicios</div>
-  </button>
 
   <!-- Toggle dark/light -->
   
@@ -1364,7 +1348,7 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
 <div id="portal-publico" class="portal on">
 
   <nav class="nav">
-    <div class="brand-wrap"><div class="logo lt" onclick="irAlInicio()">Entradas<span>Jujuy</span></div></div>
+    <div class="brand-wrap"><div class="logo lt" onclick="irAlInicio()" style="font-size:28px">Entradas<span>Jujuy</span></div></div>
     <div class="nav-r">
       <!-- Botón Ingresar: visible cuando NO hay sesión activa -->
       <button id="btn-ingresar" class="bcta t" onclick="abrirAuth()">Ingresar</button>
@@ -1386,8 +1370,10 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
             </div>
             <button class="menu-close" type="button" onclick="cerrarMainMenu()" aria-label="Cerrar menu">x</button>
           </div>
+          <button class="menu-item" type="button" onclick="irAlInicio()">Inicio <small>Eventos</small></button>
           <button class="menu-item" type="button" onclick="menuMiCuenta()">Mi cuenta <small id="menu-role">Cuenta</small></button>
           <button class="menu-item" type="button" onclick="menuMisEntradas()">Mis entradas <small>QR</small></button>
+          <button class="menu-item" type="button" onclick="cerrarMainMenu(); GO('org')">Panel de organizador <small>Publicar</small></button>
           <button class="menu-item" type="button" onclick="menuAyuda()">Ayuda <small>Email</small></button>
           <button class="menu-item" type="button" onclick="menuConfiguracion()">Configuración <small>Perfil</small></button>
           <button id="menu-login-action" class="menu-item" type="button" onclick="cerrarMainMenu(); abrirAuth()">Ingresar / crear cuenta <small>Acceso</small></button>
@@ -1508,13 +1494,6 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
       </div>
     </div>
 
-    <!-- OTROS PORTALES -->
-    <div class="port-grid">
-      <div class="port-lbl">Ecosistema EntradasJujuy</div>
-      <div class="pc" onclick="GO('org')"><div class="pc-bar" style="background:var(--c)"></div><div class="pc-nm" style="color:var(--c)">Organizadores</div><div class="pc-desc">Panel, publicación y cobros</div></div>
-      <div class="pc" onclick="GO('artistas')"><div class="pc-bar" style="background:var(--p)"></div><div class="pc-nm" style="color:var(--p)">Artistas</div><div class="pc-desc">DJs, músicos y bandas</div></div>
-      <div class="pc" onclick="GO('servicios')"><div class="pc-bar" style="background:var(--tl)"></div><div class="pc-nm" style="color:var(--tl)">Servicios</div><div class="pc-desc">Sonido, luces, escenario</div></div>
-    </div>
 
     <footer style="background:var(--bg);border-top:1px solid var(--b1);padding:32px 16px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
@@ -2060,75 +2039,6 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
   </div>
 </div>
 
-<!-- ================================================================
-     PORTAL ARTISTAS
-     ================================================================ -->
-<div id="portal-artistas" class="portal">
-  <nav class="nav">
-    <div class="brand-wrap"><div class="logo lt" onclick="irAlInicio()">Entradas<span>Jujuy</span></div><div class="portal-name">Artistas</div></div>
-    <div class="nav-r"><button class="bcta p" onclick="GOI('artistas','pub')">Publicar perfil</button></div>
-  </nav>
-  <div class="itabs" id="art-tabs">
-    <button class="itab ip" onclick="artGO('art-lista',this)">Explorar artistas</button>
-    <button class="itab" onclick="artGO('art-pub',this)">Publicar mi perfil</button>
-  </div>
-  <div class="sbar"><div class="srow"><input class="si" type="search" placeholder="Artistas, géneros..."><button class="sbtn p">Buscar</button></div><div class="chips"><div class="chip cp">Todos</div><div class="chip" onclick="chipSel(this,'cp')">DJ</div><div class="chip" onclick="chipSel(this,'cp')">Folklore</div><div class="chip" onclick="chipSel(this,'cp')">Bandas</div><div class="chip" onclick="chipSel(this,'cp')">Solistas</div><div class="chip" onclick="chipSel(this,'cp')">Teatro</div><div class="chip" onclick="chipSel(this,'cp')">Danza</div><div class="chip" onclick="chipSel(this,'cp')">Sikuris</div></div></div>
-  <div id="art-lista" class="is on">
-    <div class="sec">
-      <div class="sec-top"><div><div class="sec-ey p">Directorio</div><h2 class="sec-ti">Artistas de Jujuy</h2></div><span style="font-size:11px;color:var(--t3)">0 registrados</span></div>
-      <div class="empty-state user-project" style="padding:14px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px">Todavía no hay artistas publicados.</div>
-    </div>
-  </div>
-  <div id="art-pub" class="is">
-    <div class="fsec">
-      <h2>Publicar mi perfil</h2><p class="fsec-desc">Gratis. Sin comisión. Llegás a organizadores de toda Jujuy.</p>
-      <div class="fg"><label class="fl">Nombre artístico o banda</label><input class="fi" type="text" placeholder="Ej: DJ Coya Norte"></div>
-      <div class="fg"><label class="fl">Tipo de artista</label><select class="fi-sel"><option>DJ</option><option>Músico solista</option><option>Banda</option><option>Folklore / Copla</option><option>Sikuris</option><option>Danza</option><option>Teatro</option><option>Otro</option></select></div>
-      <div class="fg"><label class="fl">Descripción</label><textarea class="fi-area" placeholder="Tu estilo, experiencia, tipos de eventos..."></textarea></div>
-      <div class="fg-row"><div class="fg"><label class="fl">Ciudad</label><select class="fi-sel"><option>San Salvador</option><option>Humahuaca</option><option>Tilcara</option><option>Purmamarca</option><option>Otro</option></select></div><div class="fg"><label class="fl">Precio desde</label><input class="fi" type="text" placeholder="Ej: $30.000"></div></div>
-      <div class="fg"><label class="fl">Teléfono de contacto</label><input class="fi" type="tel" placeholder="+54 388..."></div>
-      <div class="fg"><label class="fl">Instagram</label><input class="fi" type="text" placeholder="@tuusuario"></div>
-      <button class="btn-sub p" onclick="publicarArtista(event)">Publicar mi perfil</button>
-      <button class="btn-sec" onclick="artGO('art-lista')">Cancelar</button>
-      <div class="publish-note" id="art-publish-note"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ================================================================
-     PORTAL SERVICIOS
-     ================================================================ -->
-<div id="portal-servicios" class="portal">
-  <nav class="nav">
-    <div class="brand-wrap"><div class="logo lt" onclick="irAlInicio()">Entradas<span>Jujuy</span></div><div class="portal-name">Servicios</div></div>
-    <div class="nav-r"><button class="bcta tl" onclick="GOI('servicios','pub')">Publicar</button></div>
-  </nav>
-  <div class="itabs" id="srv-tabs">
-    <button class="itab it" onclick="srvGO('srv-lista',this)">Ver proveedores</button>
-    <button class="itab" onclick="srvGO('srv-pub',this)">Publicar mi servicio</button>
-  </div>
-  <div class="sbar"><div class="srow"><input class="si" type="search" placeholder="Sonido, luces, catering..."><button class="sbtn tl">Buscar</button></div><div class="chips"><div class="chip ctl">Todos</div><div class="chip" onclick="chipSel(this,'ctl')">Sonido</div><div class="chip" onclick="chipSel(this,'ctl')">Luces</div><div class="chip" onclick="chipSel(this,'ctl')">Escenario</div><div class="chip" onclick="chipSel(this,'ctl')">Catering</div><div class="chip" onclick="chipSel(this,'ctl')">Fotografía</div><div class="chip" onclick="chipSel(this,'ctl')">Seguridad</div><div class="chip" onclick="chipSel(this,'ctl')">Carpas</div></div></div>
-  <div id="srv-lista" class="is on">
-    <div class="sec">
-      <div class="sec-top"><div><div class="sec-ey tl">Proveedores</div><h2 class="sec-ti">Para tu evento</h2></div><span style="font-size:11px;color:var(--t3)">0 activos</span></div>
-      <div class="empty-state user-project" style="padding:14px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px">Todavía no hay servicios publicados.</div>
-    </div>
-  </div>
-  <div id="srv-pub" class="is">
-    <div class="fsec">
-      <h2>Publicar mi servicio</h2><p class="fsec-desc">Gratis. Sin comisión. Llegás a todos los organizadores de Jujuy.</p>
-      <div class="fg"><label class="fl">Nombre de la empresa</label><input class="fi" type="text" placeholder="Ej: Sonido NOA Profesional"></div>
-      <div class="fg"><label class="fl">Categoría</label><select class="fi-sel"><option>Sonido e iluminación</option><option>Escenario y estructura</option><option>Catering</option><option>Fotografía y video</option><option>Seguridad</option><option>Carpas y mobiliario</option><option>Transporte</option><option>Otro</option></select></div>
-      <div class="fg"><label class="fl">Descripción</label><textarea class="fi-area" placeholder="Qué ofrecés, para qué eventos, capacidad..."></textarea></div>
-      <div class="fg-row"><div class="fg"><label class="fl">Precio desde</label><input class="fi" type="text" placeholder="Ej: $50.000"></div><div class="fg"><label class="fl">Ciudad / zona</label><select class="fi-sel"><option>San Salvador</option><option>Humahuaca</option><option>Tilcara</option><option>Toda la provincia</option></select></div></div>
-      <div class="fg"><label class="fl">Teléfono de contacto</label><input class="fi" type="tel" placeholder="+54 388..."></div>
-      <div class="fg"><label class="fl">Instagram</label><input class="fi" type="text" placeholder="@tuusuario"></div>
-      <button class="btn-sub tl" onclick="publicarServicio(event)">Publicar mi servicio</button>
-      <button class="btn-sec" onclick="srvGO('srv-lista')">Cancelar</button>
-      <div class="publish-note" id="srv-publish-note"></div>
-    </div>
-  </div>
-</div>
 
 <!-- ================================================================
      JAVASCRIPT - corregido definitivo
@@ -2139,9 +2049,7 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
    ========================================== */
 const CFG={
   publico:{a:'t',  id:'pt-publico', cls:'on-t'},
-  org:    {a:'c',  id:'pt-org',     cls:'on-c'},
-  artistas:{a:'p', id:'pt-artistas',cls:'on-p'},
-  servicios:{a:'tl',id:'pt-servicios',cls:'on-tl'}
+  org:    {a:'c',  id:'pt-org',     cls:'on-c'}
 };
 
 /* ==========================================
@@ -2189,7 +2097,7 @@ function irAlInicio(){
 /* ==========================================
    NAVEGAR INNER SCREENS
    ========================================== */
-const PRE={publico:'pub',org:'org',artistas:'art',servicios:'srv'};
+const PRE={publico:'pub',org:'org'};
 
 function isLoggedIn(){
   return !!(_usuario && getAuthToken());
@@ -2260,27 +2168,6 @@ function orgBN(bnEl, sid){
   ejSaveNav('org', sid);
 }
 
-/* ==========================================
-   TABS ARTISTAS / SERVICIOS
-   ========================================== */
-function artGO(sid,tabEl){
-  if(sid === 'art-pub' && !requireAccount('Necesitas una cuenta para publicar tu perfil.')) return;
-  document.querySelectorAll('#art-tabs .itab').forEach(t=>t.classList.remove('ip'));
-  if(tabEl){ tabEl.classList.add('ip'); }
-  else{ var tabs=document.querySelectorAll('#art-tabs .itab'); ['art-lista','art-pub'].forEach(function(id,i){ if(id===sid && tabs[i]) tabs[i].classList.add('ip'); }); }
-  document.querySelectorAll('#portal-artistas .is').forEach(s=>s.classList.remove('on'));
-  const s=document.getElementById(sid);if(s){s.classList.add('on');window.scrollTo(0,0);}
-  ejSaveNav('artistas', sid);
-}
-function srvGO(sid,tabEl){
-  if(sid === 'srv-pub' && !requireAccount('Necesitas una cuenta para publicar tu servicio.')) return;
-  document.querySelectorAll('#srv-tabs .itab').forEach(t=>t.classList.remove('it'));
-  if(tabEl){ tabEl.classList.add('it'); }
-  else{ var tabs=document.querySelectorAll('#srv-tabs .itab'); ['srv-lista','srv-pub'].forEach(function(id,i){ if(id===sid && tabs[i]) tabs[i].classList.add('it'); }); }
-  document.querySelectorAll('#portal-servicios .is').forEach(s=>s.classList.remove('on'));
-  const s=document.getElementById(sid);if(s){s.classList.add('on');window.scrollTo(0,0);}
-  ejSaveNav('servicios', sid);
-}
 
 
 /* -- DARK / LIGHT MODE TOGGLE -- */
@@ -3212,8 +3099,6 @@ function chipSel(el,cls){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button type="button" onclick="selRol(this,'comprador')" class="rol-btn" style="padding:12px 8px;border-radius:8px;border:1.5px solid var(--b2);background:none;cursor:pointer;font-family:Outfit,sans-serif;font-size:12px;color:var(--t2);-webkit-tap-highlight-color:transparent">Comprador</button>
         <button type="button" onclick="selRol(this,'organizador')" class="rol-btn" style="padding:12px 8px;border-radius:8px;border:1.5px solid var(--b2);background:none;cursor:pointer;font-family:Outfit,sans-serif;font-size:12px;color:var(--t2);-webkit-tap-highlight-color:transparent">Organizador</button>
-        <button type="button" onclick="selRol(this,'artista')" class="rol-btn" style="padding:12px 8px;border-radius:8px;border:1.5px solid var(--b2);background:none;cursor:pointer;font-family:Outfit,sans-serif;font-size:12px;color:var(--t2);-webkit-tap-highlight-color:transparent">Artista</button>
-        <button type="button" onclick="selRol(this,'servicios')" class="rol-btn" style="padding:12px 8px;border-radius:8px;border:1.5px solid var(--b2);background:none;cursor:pointer;font-family:Outfit,sans-serif;font-size:12px;color:var(--t2);-webkit-tap-highlight-color:transparent">Servicios</button>
       </div>
     </div>
     <div id="registro-error" role="status" aria-live="polite" style="display:none;color:#C44040;font-size:12px;margin-bottom:10px;padding:8px 12px;background:rgba(196,64,64,0.08);border-radius:6px"></div>
@@ -3454,7 +3339,7 @@ async function doGoogleAuth(response){
 
 function ejRestoreNavAuth(){
   var nav = ejLoadNav();
-  if(!nav || !nav.portal || nav.portal === 'publico') return;
+  if(!nav || !nav.portal || nav.portal === 'publico' || nav.portal === 'artistas' || nav.portal === 'servicios') return;
   var portal = nav.portal;
   var section = nav.section || '';
   /* activar portal sin llamar requireAccount (ya está autenticado) */
@@ -3478,10 +3363,6 @@ function ejRestoreNavAuth(){
     document.querySelectorAll('#portal-org .is').forEach(function(s){ s.classList.remove('on'); });
     var sc=document.getElementById(section);
     if(sc){ sc.classList.add('on'); }
-  } else if(portal === 'artistas'){
-    artGO(section);
-  } else if(portal === 'servicios'){
-    srvGO(section);
   }
 }
 
@@ -4009,8 +3890,6 @@ async function reenviarVerificacionPendiente(){
 }
 function irARol(rol){
   if(rol==='organizador') GO('org');
-  else if(rol==='artista') GO('artistas');
-  else if(rol==='servicios') GO('servicios');
   else GO('publico');
 }
 
@@ -4031,7 +3910,7 @@ function refrescarMenuUsuario(){
   var role = document.getElementById('menu-role');
   var login = document.getElementById('menu-login-action');
   var logoutBtn = document.getElementById('menu-logout-action');
-  var roles={comprador:'Comprador',organizador:'Organizador',artista:'Artista',servicios:'Servicios'};
+  var roles={comprador:'Comprador',organizador:'Organizador'};
   if(_usuario){
     if(name) name.textContent = _usuario.nombre || 'Mi cuenta';
     if(email) email.textContent = _usuario.email || '';
@@ -4106,13 +3985,11 @@ function abrirMiCuenta(){
   document.getElementById('mc-inicial').textContent = _usuario.nombre.charAt(0).toUpperCase();
   document.getElementById('mc-nombre').textContent  = _usuario.nombre;
   document.getElementById('mc-email').textContent   = _usuario.email;
-  var roles={comprador:'Comprador',organizador:'Organizador',artista:'Artista',servicios:'Servicios'};
+  var roles={comprador:'Comprador',organizador:'Organizador'};
   document.getElementById('mc-rol-badge').textContent = roles[_usuario.rol]||_usuario.rol;
   var btns={
     comprador:'<button onclick="verMisTickets()" style="width:100%;height:44px;border:1px solid var(--b1);border-radius:10px;background:none;color:var(--t1);font-size:13px;cursor:pointer;font-family:Outfit,sans-serif;text-align:left;padding:0 16px">Mis entradas</button>',
     organizador:'<button onclick="cerrarMiCuenta();GO(&quot;org&quot;)" style="width:100%;height:44px;border:1px solid var(--b1);border-radius:10px;background:none;color:var(--t1);font-size:13px;cursor:pointer;font-family:Outfit,sans-serif;text-align:left;padding:0 16px">Mi panel de organizador</button>',
-    artista:'<button onclick="cerrarMiCuenta();GO(&quot;artistas&quot;)" style="width:100%;height:44px;border:1px solid var(--b1);border-radius:10px;background:none;color:var(--t1);font-size:13px;cursor:pointer;font-family:Outfit,sans-serif;text-align:left;padding:0 16px">Mi perfil de artista</button>',
-    servicios:'<button onclick="cerrarMiCuenta();GO(&quot;servicios&quot;)" style="width:100%;height:44px;border:1px solid var(--b1);border-radius:10px;background:none;color:var(--t1);font-size:13px;cursor:pointer;font-family:Outfit,sans-serif;text-align:left;padding:0 16px">Mi perfil de servicios</button>',
   };
   document.getElementById('mc-acciones').innerHTML = btns[_usuario.rol]||'';
   document.getElementById('mc-backdrop').style.display='block';
@@ -4793,19 +4670,7 @@ async function cargarEventosPublicos(){
 }
 
 async function cargarDirectoriosPublicos(){
-  if(!BACKEND) return;
-  var store = ejLoadStore();
-  try{
-    var art = await fetch(BACKEND + '/api/artistas').then(function(r){ return r.json(); });
-    if(art.ok && Array.isArray(art.data)) store.artists = art.data;
-  }catch(e){}
-  try{
-    var srv = await fetch(BACKEND + '/api/servicios').then(function(r){ return r.json(); });
-    if(srv.ok && Array.isArray(srv.data)) store.services = srv.data;
-  }catch(e){}
-  ejSaveStore(store);
-  renderArtists(store.artists || []);
-  renderServices(store.services || []);
+  /* Artistas y Servicios fueron retirados de la plataforma. Función sin efecto. */
 }
 
 function compartirEventoActual(e){
@@ -5330,71 +5195,9 @@ async function guardarBorradorOrg(ev){
   }
 }
 
-async function publicarArtista(ev){
-  if(ev) ev.preventDefault();
-  if(!requirePublishedSession('art-publish-note')) return;
-  var root = document.getElementById('art-pub');
-  var fields = root.querySelectorAll('input, textarea, select');
-  var item = {
-    id: Date.now(),
-    name: ejText(fields[0], 'Artista sin nombre'),
-    type: ejText(fields[1], 'Artista'),
-    desc: ejText(fields[2], ''),
-    city: ejText(fields[3], ''),
-    price: ejText(fields[4], ''),
-    contacto: ejText(fields[5], ''),
-    instagram: ejText(fields[6], '')
-  };
-  item['whats' + 'app'] = item.contacto;
-  try{
-    var data = await apiPost('/api/productos/artistas', item);
-    item = data.data || item;
-    var store = ejLoadStore();
-    store.artists = (store.artists || []).filter(function(a){ return a.id !== item.id; });
-    store.artists.unshift(item);
-    if(!ejSaveStore(store)) return;
-    renderPublishedProjects();
-    showPublishNote('art-publish-note','Perfil publicado y guardado en el servidor.');
-  }catch(e){
-    showPublishNote('art-publish-note', e.message || 'No se pudo publicar el perfil.');
-  }
-}
-
-async function publicarServicio(ev){
-  if(ev) ev.preventDefault();
-  if(!requirePublishedSession('srv-publish-note')) return;
-  var root = document.getElementById('srv-pub');
-  var fields = root.querySelectorAll('input, textarea, select');
-  var item = {
-    id: Date.now(),
-    name: ejText(fields[0], 'Servicio sin nombre'),
-    type: ejText(fields[1], 'Servicio'),
-    desc: ejText(fields[2], ''),
-    price: ejText(fields[3], ''),
-    city: ejText(fields[4], ''),
-    contacto: ejText(fields[5], ''),
-    instagram: ejText(fields[6], '')
-  };
-  item['whats' + 'app'] = item.contacto;
-  try{
-    var data = await apiPost('/api/productos/servicios', item);
-    item = data.data || item;
-    var store = ejLoadStore();
-    store.services = (store.services || []).filter(function(s){ return s.id !== item.id; });
-    store.services.unshift(item);
-    if(!ejSaveStore(store)) return;
-    renderPublishedProjects();
-    showPublishNote('srv-publish-note','Servicio publicado y guardado en el servidor.');
-  }catch(e){
-    showPublishNote('srv-publish-note', e.message || 'No se pudo publicar el servicio.');
-  }
-}
-
 function renderPublishedProjects(){
   var store = ejLoadStore();
   renderOrgEvents(store.myEvents || []);
-  renderArtists(store.artists);
-  renderServices(store.services);
 }
 
 function renderOrgEvents(events){
@@ -5641,48 +5444,6 @@ async function eliminarDesdeModal(){
     if(nota){ nota.style.color = '#C44040'; nota.textContent = e.message || 'No pudimos eliminar el evento.'; }
     if(btn){ btn.disabled = false; btn.textContent = 'Eliminar evento'; }
   }
-}
-
-function renderArtists(artists){
-  var list = document.querySelector('#art-lista .sec');
-  if(!list) return;
-  list.querySelectorAll('.user-project').forEach(function(n){ n.remove(); });
-  if(!artists || !artists.length){
-    var emptyArt = document.createElement('div');
-    emptyArt.className = 'empty-state user-project';
-    emptyArt.style.cssText = 'padding:14px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px';
-    emptyArt.textContent = 'Todavía no hay artistas publicados.';
-    list.appendChild(emptyArt);
-    return;
-  }
-  artists.forEach(function(item){
-    var row = document.createElement('div');
-    row.className = 'art-i user-project';
-    row.innerHTML = '<div class="art-av av-solo"></div><div class="art-inf"><div class="art-nm">'+escapeHtml(item.name)+'</div><span class="art-tipo at-folk">'+escapeHtml(item.type)+'</span><div class="art-desc">'+escapeHtml(item.desc || item.city || 'Perfil publicado')+'</div></div><div class="art-r"><button class="bcn p">Contactar</button></div>';
-    var first = list.querySelector('.art-i');
-    list.insertBefore(row, first);
-  });
-}
-
-function renderServices(services){
-  var list = document.querySelector('#srv-lista .sec');
-  if(!list) return;
-  list.querySelectorAll('.user-project').forEach(function(n){ n.remove(); });
-  if(!services || !services.length){
-    var emptySrv = document.createElement('div');
-    emptySrv.className = 'empty-state user-project';
-    emptySrv.style.cssText = 'padding:14px;border:1px solid var(--b1);border-radius:var(--r);background:var(--bg2);color:var(--t2);font-size:13px';
-    emptySrv.textContent = 'Todavía no hay servicios publicados.';
-    list.appendChild(emptySrv);
-    return;
-  }
-  services.forEach(function(item){
-    var row = document.createElement('div');
-    row.className = 'srv-i user-project';
-    row.innerHTML = '<div class="srv-ic si-sn"></div><div class="srv-inf"><div class="srv-nm">'+escapeHtml(item.name)+'</div><span class="srv-tp">'+escapeHtml(item.type)+'</span><div class="srv-desc">'+escapeHtml(item.desc || item.city || 'Servicio publicado')+'</div><div class="srv-pr">'+escapeHtml(item.price || 'Consultar')+'</div></div><div class="srv-r"><button class="bcot">Cotizar</button></div>';
-    var first = list.querySelector('.srv-i');
-    list.insertBefore(row, first);
-  });
 }
 
 function escapeHtml(str){
