@@ -2447,7 +2447,7 @@ app.get('/api/eventos/:id/flyer', async (req, res) => {
 
 // ── INICIAR COMPRA — crea preferencia en MP
 app.post('/api/compra/iniciar', requireAuth, async (req, res) => {
-  const { evento_id, items, comprador } = req.body || {};
+  const { evento_id, items, comprador, rrpp } = req.body || {};
  
   if (!evento_id || !items?.length)
     return res.status(400).json({ ok: false, error: 'Datos incompletos' });
@@ -2522,11 +2522,24 @@ app.post('/api/compra/iniciar', requireAuth, async (req, res) => {
     /* marketplaceFee = lo que se queda EntradasJujuy (suma de servicios) */
     const marketplaceFee = Math.max(0, Math.round(itemsData.reduce((sum, it) => sum + (it._servicioFee * it.cantidad), 0) * 100) / 100);
  
+    /* Atribución a RRPP: si viene un código válido para este evento y no está
+       revocado, la orden queda atribuida a esa asignación (aunque el pago se
+       apruebe después: rrpp_asignacion_id ya queda persistido en la orden). */
+    let rrppAsignacionId = null;
+    const rrppCodigo = String(rrpp || '').trim();
+    if (rrppCodigo) {
+      const { rows: asig } = await db.query(
+        `SELECT id FROM rrpp_asignaciones WHERE codigo = $1 AND evento_id = $2 AND estado <> 'revocada' LIMIT 1`,
+        [rrppCodigo, evento_id]
+      );
+      if (asig.length) rrppAsignacionId = asig[0].id;
+    }
+
     // Crear orden en DB
     const ordenId = uuid();
     await db.query(
-      'INSERT INTO ordenes (id, evento_id, comprador_email, comprador_nombre, comprador_dni, estado, created_at) VALUES ($1,$2,$3,$4,$5,\'pendiente\',NOW())',
-      [ordenId, evento_id, compradorFinal.email, compradorFinal.nombre, compradorFinal.dni || '']
+      'INSERT INTO ordenes (id, evento_id, comprador_email, comprador_nombre, comprador_dni, estado, rrpp_asignacion_id, created_at) VALUES ($1,$2,$3,$4,$5,\'pendiente\',$6,NOW())',
+      [ordenId, evento_id, compradorFinal.email, compradorFinal.nombre, compradorFinal.dni || '', rrppAsignacionId]
     );
     for (const it of itemsData) {
       /* precio_unitario = lo que recibe el organizador por entrada
@@ -3050,6 +3063,162 @@ function deadlineLimiteMs(fechaEvento, horaInicio, horaLimite, fechaLimite) {
   } catch { return null; }
 }
 
+// ── RRPP / "PÚBLICAS": el organizador invita gente a vender su evento ──
+async function generarCodigoRrppUnico() {
+  for (let i = 0; i < 8; i++) {
+    const codigo = crypto.randomBytes(6).toString('hex').slice(0, 8).toUpperCase();
+    const { rows } = await db.query('SELECT 1 FROM rrpp_asignaciones WHERE codigo = $1', [codigo]);
+    if (!rows.length) return codigo;
+  }
+  throw new Error('No se pudo generar un código único');
+}
+
+/* El organizador invita una RRPP a un evento suyo: crea la asignación con un
+   código de link y le manda un email con el acceso + su link de venta. */
+app.post('/api/organizador/rrpp/invitar', giftLimiter, requireAuth, async (req, res) => {
+  const eventoId = String(req.body?.evento_id || '').trim();
+  const email = normalizeEmail(req.body?.email || '');
+  const nombre = String(req.body?.nombre || '').trim().slice(0, 120);
+  const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  if (!eventoId) return res.status(400).json({ ok: false, error: 'Seleccioná un evento' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Email inválido' });
+  try {
+    const { rows: ev } = await db.query('SELECT id, nombre FROM eventos WHERE id = $1 AND organizador_id = $2', [eventoId, req.user.id]);
+    if (!ev.length) return res.status(404).json({ ok: false, error: 'Evento no encontrado' });
+    const evento = ev[0];
+    /* Si ya existe asignación no-revocada para ese email+evento, la reutilizamos */
+    const { rows: existe } = await db.query(
+      `SELECT * FROM rrpp_asignaciones WHERE evento_id = $1 AND lower(email) = lower($2) AND estado <> 'revocada' LIMIT 1`,
+      [eventoId, email]
+    );
+    let asignacion;
+    if (existe.length) {
+      asignacion = existe[0];
+    } else {
+      const codigo = await generarCodigoRrppUnico();
+      const { rows: usr } = await db.query('SELECT id FROM usuarios WHERE lower(email) = lower($1) LIMIT 1', [email]);
+      const rrppUsuarioId = usr.length ? usr[0].id : null;
+      const { rows: nueva } = await db.query(
+        `INSERT INTO rrpp_asignaciones (evento_id, organizador_id, email, nombre, codigo, rrpp_usuario_id, estado)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [eventoId, req.user.id, email, nombre || null, codigo, rrppUsuarioId, rrppUsuarioId ? 'activa' : 'pendiente']
+      );
+      asignacion = nueva[0];
+    }
+    const salesLink = `${FRONTEND_URL}/?rrpp=${encodeURIComponent(asignacion.codigo)}&ev=${encodeURIComponent(eventoId)}`;
+    let emailSent = false;
+    if (SMTP_USER && SMTP_PASS) {
+      try {
+        await sendMailResilient({
+          from: MAIL_FROM,
+          to: email,
+          subject: `Te invitaron a vender entradas — ${String(evento.nombre).slice(0, 60)}`,
+          text: `Hola${nombre ? ' ' + nombre : ''}, ${req.user.nombre || 'el organizador'} te invitó a vender entradas de "${evento.nombre}" en EntradasJujuy.\n\nEntrá con este email (${email}) a ${FRONTEND_URL} para ver tu panel de ventas.\n\nTu link de venta: ${salesLink}\nCada compra que entre por ese link queda registrada como tuya.`,
+          html: `<div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif">
+            <div style="background:#0a0704;padding:22px;text-align:center;border-radius:10px 10px 0 0"><h1 style="color:#C4692B;margin:0;font-size:24px;font-weight:900">Entradas<span style="color:#3A6FA0">Jujuy</span></h1></div>
+            <div style="padding:24px;background:#fff;border:1px solid #eadfd3;border-top:none;border-radius:0 0 10px 10px">
+              <p style="font-size:15px;color:#1f1a14;line-height:1.5">Hola${nombre ? ' <strong>' + esc(nombre) + '</strong>' : ''}, <strong>${esc(req.user.nombre || 'el organizador')}</strong> te invitó a vender entradas de <strong>${esc(evento.nombre)}</strong>.</p>
+              <p style="font-size:14px;color:#3d342a;line-height:1.5">Entrá con este email (<strong>${esc(email)}</strong>) a EntradasJujuy para ver tu panel con tus ventas.</p>
+              <div style="background:#fafafa;border:1px solid #eee;border-left:4px solid #C4692B;border-radius:10px;padding:14px;margin:16px 0">
+                <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#8b7a66;margin-bottom:6px;font-weight:700">Tu link de venta</div>
+                <a href="${salesLink}" style="font-size:13px;color:#3A6FA0;word-break:break-all">${esc(salesLink)}</a>
+              </div>
+              <p style="font-size:12px;color:#8b7a66">Cada compra que entre por tu link queda registrada como tuya.</p>
+              <a href="${FRONTEND_URL}" style="display:inline-block;margin-top:8px;background:#C4692B;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:700">Abrir mi panel</a>
+            </div></div>`,
+        }, 'rrpp_invite');
+        emailSent = true;
+      } catch (err) { console.error('[RRPP INVITE EMAIL]', err.message); }
+    }
+    res.status(201).json({ ok: true, data: { asignacion, sales_link: salesLink, email_sent: emailSent } });
+  } catch (err) {
+    console.error('[RRPP INVITAR]', err.message);
+    res.status(500).json({ ok: false, error: 'No pudimos crear la invitación' });
+  }
+});
+
+/* Lista de RRPPs del organizador (opcional filtrar por ?evento_id) con ventas. */
+app.get('/api/organizador/rrpp', requireAuth, async (req, res) => {
+  const eventoId = String(req.query?.evento_id || '').trim();
+  try {
+    const params = [req.user.id];
+    let filtro = '';
+    if (eventoId) { params.push(eventoId); filtro = ' AND a.evento_id = $2'; }
+    const { rows } = await db.query(`
+      SELECT a.id, a.evento_id, a.email, a.nombre, a.codigo, a.estado, a.rrpp_usuario_id, a.created_at,
+             e.nombre AS evento_nombre, e.fecha AS evento_fecha,
+             (SELECT COUNT(*) FROM entradas en JOIN ordenes o ON o.id = en.orden_id
+                WHERE o.rrpp_asignacion_id = a.id AND o.estado IN ('pagada','cortesia')) AS entradas_vendidas,
+             (SELECT COALESCE(SUM(oi.precio_unitario*oi.cantidad),0) FROM orden_items oi JOIN ordenes o ON o.id = oi.orden_id
+                WHERE o.rrpp_asignacion_id = a.id AND o.estado IN ('pagada','cortesia')) AS monto_vendido
+      FROM rrpp_asignaciones a
+      JOIN eventos e ON e.id = a.evento_id
+      WHERE a.organizador_id = $1${filtro}
+      ORDER BY a.created_at DESC
+    `, params);
+    const data = rows.map(r => ({
+      ...r,
+      entradas_vendidas: Number(r.entradas_vendidas || 0),
+      monto_vendido: Number(r.monto_vendido || 0),
+      sales_link: `${FRONTEND_URL}/?rrpp=${encodeURIComponent(r.codigo)}&ev=${encodeURIComponent(r.evento_id)}`,
+    }));
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error('[RRPP LIST]', err.message);
+    res.status(500).json({ ok: false, error: 'No pudimos cargar las RRPP' });
+  }
+});
+
+/* El organizador revoca una asignación (deja de contar para nuevas ventas). */
+app.post('/api/organizador/rrpp/:id/revocar', requireAuth, async (req, res) => {
+  try {
+    const { rowCount } = await db.query(
+      `UPDATE rrpp_asignaciones SET estado='revocada' WHERE id = $1 AND organizador_id = $2`,
+      [req.params.id, req.user.id]
+    );
+    if (!rowCount) return res.status(404).json({ ok: false, error: 'Asignación no encontrada' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[RRPP REVOCAR]', err.message);
+    res.status(500).json({ ok: false, error: 'No pudimos revocar' });
+  }
+});
+
+/* Panel de la RRPP: sus asignaciones (auto-vinculadas por email al entrar) + ventas. */
+app.get('/api/rrpp/mis-asignaciones', requireAuth, async (req, res) => {
+  try {
+    await db.query(
+      `UPDATE rrpp_asignaciones SET rrpp_usuario_id = $1, estado = CASE WHEN estado='pendiente' THEN 'activa' ELSE estado END
+       WHERE lower(email) = lower($2) AND rrpp_usuario_id IS NULL AND estado <> 'revocada'`,
+      [req.user.id, req.user.email]
+    );
+    const { rows } = await db.query(`
+      SELECT a.id, a.evento_id, a.codigo, a.estado, a.created_at,
+             e.nombre AS evento_nombre, e.fecha AS evento_fecha, e.hora AS evento_hora, e.lugar AS evento_lugar,
+             u.nombre AS organizador_nombre,
+             (SELECT COUNT(*) FROM entradas en JOIN ordenes o ON o.id = en.orden_id
+                WHERE o.rrpp_asignacion_id = a.id AND o.estado IN ('pagada','cortesia')) AS entradas_vendidas,
+             (SELECT COALESCE(SUM(oi.precio_unitario*oi.cantidad),0) FROM orden_items oi JOIN ordenes o ON o.id = oi.orden_id
+                WHERE o.rrpp_asignacion_id = a.id AND o.estado IN ('pagada','cortesia')) AS monto_vendido
+      FROM rrpp_asignaciones a
+      JOIN eventos e ON e.id = a.evento_id
+      LEFT JOIN usuarios u ON u.id = a.organizador_id
+      WHERE a.rrpp_usuario_id = $1 AND a.estado <> 'revocada'
+      ORDER BY e.fecha ASC NULLS LAST, a.created_at DESC
+    `, [req.user.id]);
+    const data = rows.map(r => ({
+      ...r,
+      entradas_vendidas: Number(r.entradas_vendidas || 0),
+      monto_vendido: Number(r.monto_vendido || 0),
+      sales_link: `${FRONTEND_URL}/?rrpp=${encodeURIComponent(r.codigo)}&ev=${encodeURIComponent(r.evento_id)}`,
+    }));
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error('[RRPP MIS-ASIGNACIONES]', err.message);
+    res.status(500).json({ ok: false, error: 'No pudimos cargar tus ventas' });
+  }
+});
+
 // ── VALIDAR QR (app escáner)
 /* Validación por entrada_id contra la base de datos. La firma JWT se verifica
    si es posible, pero NO se exige: el JWT_SECRET pudo rotar en un deploy y dejar
@@ -3286,6 +3455,28 @@ async function autoMigrate(){
       )
     `);
     await db.query(`CREATE INDEX IF NOT EXISTS qr_credits_log_usuario_idx ON qr_credits_log (usuario_id, created_at DESC)`);
+    /* RRPP / "públicas": el organizador invita gente a vender un evento con su
+       propio link. Cada asignación = (evento, email invitado, código de link).
+       Las órdenes generadas por ese link guardan rrpp_asignacion_id para atribuir. */
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS rrpp_asignaciones (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        evento_id UUID NOT NULL,
+        organizador_id UUID NOT NULL,
+        email TEXT NOT NULL,
+        nombre TEXT,
+        codigo TEXT UNIQUE NOT NULL,
+        rrpp_usuario_id UUID,
+        estado TEXT NOT NULL DEFAULT 'pendiente',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS rrpp_asig_codigo_idx ON rrpp_asignaciones(codigo)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS rrpp_asig_evento_idx ON rrpp_asignaciones(evento_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS rrpp_asig_email_idx ON rrpp_asignaciones(lower(email))`);
+    await db.query(`CREATE INDEX IF NOT EXISTS rrpp_asig_usuario_idx ON rrpp_asignaciones(rrpp_usuario_id)`);
+    await db.query(`ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS rrpp_asignacion_id UUID`);
+    await db.query(`CREATE INDEX IF NOT EXISTS ordenes_rrpp_idx ON ordenes(rrpp_asignacion_id)`);
     console.log('[MIGRATE] Schema actualizado');
   } catch(err){
     console.error('[MIGRATE] Error:', err.message);
