@@ -1384,6 +1384,7 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
           <button class="menu-item" type="button" onclick="menuMiCuenta()">Mi cuenta <small id="menu-role">Cuenta</small></button>
           <button class="menu-item" type="button" onclick="menuMisEntradas()">Mis entradas <small>QR</small></button>
           <button class="menu-item" type="button" onclick="cerrarMainMenu(); GO('org')">Panel de organizador <small>Publicar</small></button>
+          <button class="menu-item" type="button" onclick="cerrarMainMenu(); abrirVendedorPanel()">Mis ventas <small>Vendedor</small></button>
           <button class="menu-item" type="button" onclick="menuAyuda()">Ayuda <small>Email</small></button>
           <button class="menu-item" type="button" onclick="menuConfiguracion()">Configuración <small>Perfil</small></button>
           <button id="menu-login-action" class="menu-item" type="button" onclick="cerrarMainMenu(); abrirAuth()">Ingresar / crear cuenta <small>Acceso</small></button>
@@ -2815,7 +2816,8 @@ async function iniciarPago(){
       body: JSON.stringify({
         evento_id: EVENTO_COMPRA_ID,
         items,
-        comprador: { nombre, email, dni }
+        comprador: { nombre, email, dni },
+        rrpp: (window._RRPP_CODIGO || localStorage.getItem('ej-rrpp') || '')
       })
     });
 
@@ -3010,6 +3012,46 @@ function chipSel(el,cls){
 <!-- ================================================================
      MODAL EDITAR EVENTO
      ================================================================ -->
+<!-- ================================================================
+     MODAL RRPP / PÚBLICAS (organizador: invitar y ver ventas por evento)
+     ================================================================ -->
+<div id="rrpp-modal-backdrop" onclick="cerrarRrppModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9995"></div>
+<div id="rrpp-modal" role="dialog" aria-modal="true" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;padding:24px 20px max(24px,env(safe-area-inset-bottom));z-index:9996;max-width:480px;max-height:92vh;overflow-y:auto;margin:0 auto;box-shadow:0 -8px 40px rgba(0,0,0,0.2);transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.2,0.64,1);border-top:1px solid var(--b1)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:var(--t1)">Públicas / Vendedores</div>
+    <button onclick="cerrarRrppModal()" style="background:none;border:none;font-size:22px;color:var(--t3);cursor:pointer;padding:4px 8px;line-height:1">✕</button>
+  </div>
+  <div id="rrpp-modal-evento-nombre" style="font-size:12px;color:var(--c);margin-bottom:8px;font-weight:600"></div>
+  <div style="font-size:12px;color:var(--t3);line-height:1.5;margin-bottom:14px;padding:10px;background:rgba(58,111,160,.06);border:1px solid rgba(58,111,160,.18);border-radius:8px">
+    Invitá gente a vender este evento. Cada una recibe su <strong>link de venta</strong> por email: todo lo que se compre por ese link queda registrado como venta suya.
+  </div>
+  <div class="fg"><label class="fl">Email de la pública/vendedor</label><input class="fi" id="rrpp-email" type="email" placeholder="vendedor@email.com" autocomplete="off"></div>
+  <div class="fg"><label class="fl">Nombre (opcional)</label><input class="fi" id="rrpp-nombre" type="text" placeholder="Nombre de referencia"></div>
+  <button class="btn-sub c" id="rrpp-invitar-btn" onclick="invitarRrpp(event)" style="margin-top:4px">Invitar y enviar link</button>
+  <div class="publish-note" id="rrpp-note" style="margin-top:8px"></div>
+  <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin:18px 0 8px;font-weight:700">Vendedores del evento</div>
+  <div id="rrpp-modal-list" style="display:flex;flex-direction:column;gap:8px">
+    <div style="padding:14px;color:var(--t2);font-size:13px;text-align:center">Cargando...</div>
+  </div>
+</div>
+
+<!-- ================================================================
+     MODAL PANEL VENDEDOR (la RRPP ve sus eventos, links y ventas)
+     ================================================================ -->
+<div id="vendedor-modal-backdrop" onclick="cerrarVendedorModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9995"></div>
+<div id="vendedor-modal" role="dialog" aria-modal="true" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;padding:24px 20px max(24px,env(safe-area-inset-bottom));z-index:9996;max-width:480px;max-height:92vh;overflow-y:auto;margin:0 auto;box-shadow:0 -8px 40px rgba(0,0,0,0.2);transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.2,0.64,1);border-top:1px solid var(--b1)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:700;color:var(--t1)">Mis ventas</div>
+    <button onclick="cerrarVendedorModal()" style="background:none;border:none;font-size:22px;color:var(--t3);cursor:pointer;padding:4px 8px;line-height:1">✕</button>
+  </div>
+  <div style="font-size:12px;color:var(--t3);line-height:1.5;margin-bottom:14px;padding:10px;background:rgba(196,105,43,.06);border:1px solid rgba(196,105,43,.18);border-radius:8px">
+    Estos son los eventos en los que te invitaron a vender. Compartí tu <strong>link</strong>: cada compra que entre por ahí suma a tus ventas.
+  </div>
+  <div id="vendedor-modal-list" style="display:flex;flex-direction:column;gap:10px">
+    <div style="padding:14px;color:var(--t2);font-size:13px;text-align:center">Cargando...</div>
+  </div>
+</div>
+
 <div id="edit-evento-backdrop" onclick="cerrarEditarEvento()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9997"></div>
 <div id="edit-evento-modal" role="dialog" aria-modal="true" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;padding:24px 20px max(24px,env(safe-area-inset-bottom));z-index:9998;max-width:480px;max-height:92vh;overflow-y:auto;margin:0 auto;box-shadow:0 -8px 40px rgba(0,0,0,0.2);transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.2,0.64,1);border-top:1px solid var(--b1)">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
@@ -5257,7 +5299,8 @@ function renderOrgEvents(events){
         '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="prepararRegaloEvento(\''+escapeHtml(String(item.id))+'\')">Regalar QR</button>'+
         '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px;background:rgba(196,105,43,.08);border-color:rgba(196,105,43,.35);color:var(--t)" onclick="abrirReenvioEvento(\''+escapeHtml(String(item.id))+'\', \''+escapeHtml(String(item.name||'Evento')).replace(/\'/g,'&#39;')+'\')">Reenviar QR</button>'+
         '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="editarEvento(\''+escapeHtml(String(item.id))+'\')">Editar</button>'+
-      '</div>';
+      '</div>'+
+      '<button class="btn-sec" style="width:100%;height:38px;font-size:11px;margin-top:6px;background:rgba(58,111,160,.10);border-color:rgba(58,111,160,.4);color:var(--t1)" onclick="abrirRrppEvento(\''+escapeHtml(String(item.id))+'\', \''+escapeHtml(String(item.name||'Evento')).replace(/\'/g,'&#39;')+'\')">Públicas / Vendedores</button>';
     var firstRow = list.querySelector('.ev-row');
     list.insertBefore(row, firstRow);
   });
@@ -5948,6 +5991,152 @@ async function enviarVentaQrCredit(event){
 }
 
 /* Detectar regreso de Mercado Pago tras compra de créditos */
+/* ====== RRPP / Públicas (organizador) ====== */
+var _rrppEventoActual = null;
+
+function _rrppNota(msg, ok){
+  var note = document.getElementById('rrpp-note');
+  if(!note) return;
+  note.style.display = 'block';
+  note.style.padding = '10px 12px';
+  note.style.borderRadius = '8px';
+  note.style.marginTop = '8px';
+  note.style.fontSize = '12px';
+  note.style.background = ok ? 'rgba(61,170,106,.08)' : 'rgba(196,64,64,.08)';
+  note.style.border = ok ? '1px solid rgba(61,170,106,.30)' : '1px solid rgba(196,64,64,.25)';
+  note.style.color = ok ? 'var(--g)' : '#C44040';
+  note.textContent = msg;
+}
+
+function abrirRrppModal(){
+  var m = document.getElementById('rrpp-modal');
+  var b = document.getElementById('rrpp-modal-backdrop');
+  if(m){ m.style.display='block'; setTimeout(function(){ m.style.transform='translateY(0)'; },10); }
+  if(b) b.style.display='block';
+}
+function cerrarRrppModal(){
+  var m = document.getElementById('rrpp-modal');
+  var b = document.getElementById('rrpp-modal-backdrop');
+  if(m){ m.style.transform='translateY(100%)'; setTimeout(function(){ m.style.display='none'; },350); }
+  if(b) b.style.display='none';
+}
+function abrirRrppEvento(eventId, eventName){
+  if(!requireAccount('Necesitas iniciar sesión.')) return;
+  if(!eventId) return;
+  _rrppEventoActual = eventId;
+  var nom = document.getElementById('rrpp-modal-evento-nombre'); if(nom) nom.textContent = eventName || '';
+  ['rrpp-email','rrpp-nombre'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  var note = document.getElementById('rrpp-note'); if(note){ note.style.display='none'; note.textContent=''; }
+  abrirRrppModal();
+  cargarRrppList(eventId);
+}
+async function cargarRrppList(eventId){
+  var box = document.getElementById('rrpp-modal-list');
+  if(box) box.innerHTML = '<div style="padding:14px;color:var(--t2);font-size:13px;text-align:center">Cargando...</div>';
+  try{
+    var r = await fetch(BACKEND + '/api/organizador/rrpp?evento_id=' + encodeURIComponent(eventId), { headers: apiHeaders() });
+    var d = await r.json();
+    if(!r.ok || !d.ok) throw new Error(d.error || 'No se pudo cargar.');
+    var lista = d.data || [];
+    if(!lista.length){ if(box) box.innerHTML = '<div style="padding:16px;color:var(--t2);font-size:13px;text-align:center;border:1px solid var(--b1);border-radius:10px;background:var(--bg2)">Todavía no invitaste a nadie a vender este evento.</div>'; return; }
+    if(box) box.innerHTML = lista.map(function(a){
+      var estadoTxt = a.estado === 'activa' ? 'Activa' : (a.estado === 'pendiente' ? 'Pendiente' : a.estado);
+      var estadoColor = a.estado === 'activa' ? 'var(--g)' : 'var(--t3)';
+      var monto = '$' + Number(a.monto_vendido||0).toLocaleString('es-AR');
+      return '<div style="border:1px solid var(--b1);border-radius:12px;background:var(--bg2);padding:12px">'+
+        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:8px">'+
+          '<div style="min-width:0;flex:1"><div style="font-size:13px;color:var(--t1);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(a.nombre || a.email)+'</div>'+
+          '<div style="font-size:11px;color:var(--t3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(a.email)+' · <span style="color:'+estadoColor+'">'+escapeHtml(estadoTxt)+'</span></div></div>'+
+          '<div style="text-align:right;flex-shrink:0"><div style="font-size:15px;font-weight:800;color:var(--t)">'+Number(a.entradas_vendidas||0)+'</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">entradas</div></div>'+
+        '</div>'+
+        '<div style="font-size:11px;color:var(--t2);margin-bottom:8px">Vendido: <strong style="color:var(--t1)">'+monto+'</strong></div>'+
+        '<div style="display:flex;gap:6px">'+
+          '<button onclick="copiarLinkRrpp(&quot;'+encodeURIComponent(a.sales_link)+'&quot;, this)" style="flex:1;height:32px;border-radius:8px;border:1px solid var(--c);background:rgba(58,111,160,.10);color:var(--t1);font-size:11px;font-weight:600;cursor:pointer">Copiar link</button>'+
+          '<button onclick="revocarRrpp(&quot;'+escapeHtml(String(a.id))+'&quot;, this)" style="height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--b1);background:none;color:var(--t3);font-size:11px;cursor:pointer">Quitar</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }catch(e){ if(box) box.innerHTML = '<div style="padding:14px;color:#C44040;font-size:13px;text-align:center">'+escapeHtml(e.message||'Error')+'</div>'; }
+}
+async function invitarRrpp(ev){
+  if(ev) ev.preventDefault();
+  var btn = document.getElementById('rrpp-invitar-btn');
+  var email = ((document.getElementById('rrpp-email')||{}).value || '').trim();
+  var nombre = ((document.getElementById('rrpp-nombre')||{}).value || '').trim();
+  if(!email || !email.includes('@')){ _rrppNota('Ingresá un email válido.', false); return; }
+  if(!_rrppEventoActual){ return; }
+  if(btn){ btn.disabled=true; btn.textContent='Invitando...'; }
+  try{
+    var r = await fetch(BACKEND + '/api/organizador/rrpp/invitar', {
+      method:'POST', headers: apiHeaders(),
+      body: JSON.stringify({ evento_id: _rrppEventoActual, email: email, nombre: nombre })
+    });
+    var d = await r.json();
+    if(!r.ok || !d.ok) throw new Error(d.error || 'No se pudo invitar.');
+    _rrppNota(d.data && d.data.email_sent ? 'Invitación enviada por email. Ya aparece abajo.' : 'Vendedor agregado. El email no salió, pero el link ya está abajo para compartir.', true);
+    var em=document.getElementById('rrpp-email'); if(em) em.value='';
+    var nm=document.getElementById('rrpp-nombre'); if(nm) nm.value='';
+    cargarRrppList(_rrppEventoActual);
+  }catch(e){ _rrppNota(e.message||'Error al invitar.', false); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Invitar y enviar link'; } }
+}
+async function revocarRrpp(id, btn){
+  if(!id) return;
+  if(!confirm('¿Quitar a este vendedor? Su link deja de sumar ventas nuevas.')) return;
+  if(btn){ btn.disabled=true; btn.textContent='...'; }
+  try{
+    var r = await fetch(BACKEND + '/api/organizador/rrpp/' + encodeURIComponent(id) + '/revocar', { method:'POST', headers: apiHeaders() });
+    var d = await r.json();
+    if(!r.ok || !d.ok) throw new Error(d.error||'Error');
+    if(_rrppEventoActual) cargarRrppList(_rrppEventoActual);
+  }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Quitar'; } alert(e.message||'No se pudo quitar.'); }
+}
+function copiarLinkRrpp(encoded, btn){
+  var link = decodeURIComponent(encoded);
+  var done = function(){ if(btn){ var t=btn.textContent; btn.textContent='¡Copiado!'; setTimeout(function(){ btn.textContent=t; },1500); } };
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(link).then(done, function(){ prompt('Copiá el link:', link); }); }
+    else { prompt('Copiá el link:', link); }
+  }catch(e){ prompt('Copiá el link:', link); }
+}
+
+/* ====== Panel del vendedor (RRPP) ====== */
+function cerrarVendedorModal(){
+  var m = document.getElementById('vendedor-modal');
+  var b = document.getElementById('vendedor-modal-backdrop');
+  if(m){ m.style.transform='translateY(100%)'; setTimeout(function(){ m.style.display='none'; },350); }
+  if(b) b.style.display='none';
+}
+async function abrirVendedorPanel(){
+  if(!requireAccount('Iniciá sesión para ver tus ventas.')) return;
+  var m = document.getElementById('vendedor-modal');
+  var b = document.getElementById('vendedor-modal-backdrop');
+  var box = document.getElementById('vendedor-modal-list');
+  if(box) box.innerHTML = '<div style="padding:14px;color:var(--t2);font-size:13px;text-align:center">Cargando...</div>';
+  if(m){ m.style.display='block'; setTimeout(function(){ m.style.transform='translateY(0)'; },10); }
+  if(b) b.style.display='block';
+  try{
+    var r = await fetch(BACKEND + '/api/rrpp/mis-asignaciones', { headers: apiHeaders() });
+    var d = await r.json();
+    if(!r.ok || !d.ok) throw new Error(d.error || 'No se pudo cargar.');
+    var lista = d.data || [];
+    if(!lista.length){ if(box) box.innerHTML = '<div style="padding:18px;color:var(--t2);font-size:13px;text-align:center;border:1px solid var(--b1);border-radius:10px;background:var(--bg2)">Todavía no te invitaron a vender ningún evento.<br><span style="color:var(--t3);font-size:12px;display:block;margin-top:6px">Cuando un organizador te invite, el evento y tu link van a aparecer acá.</span></div>'; return; }
+    if(box) box.innerHTML = lista.map(function(a){
+      var monto = '$' + Number(a.monto_vendido||0).toLocaleString('es-AR');
+      var fecha = a.evento_fecha ? formatearFecha(String(a.evento_fecha).slice(0,10)) : '';
+      return '<div style="border:1px solid var(--b1);border-radius:14px;background:var(--bg2);padding:14px">'+
+        '<div style="font-size:15px;font-weight:800;color:var(--t1);margin-bottom:2px">'+escapeHtml(a.evento_nombre||'Evento')+'</div>'+
+        '<div style="font-size:11px;color:var(--t3);margin-bottom:12px">'+escapeHtml([fecha, a.evento_lugar, a.organizador_nombre?('por '+a.organizador_nombre):''].filter(Boolean).join(' · '))+'</div>'+
+        '<div style="display:flex;gap:10px;margin-bottom:12px">'+
+          '<div style="flex:1;background:var(--bg);border:1px solid var(--b1);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--t)">'+Number(a.entradas_vendidas||0)+'</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Entradas</div></div>'+
+          '<div style="flex:1;background:var(--bg);border:1px solid var(--b1);border-radius:10px;padding:10px;text-align:center"><div style="font-size:16px;font-weight:900;color:var(--g)">'+monto+'</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Vendido</div></div>'+
+        '</div>'+
+        '<button onclick="copiarLinkRrpp(&quot;'+encodeURIComponent(a.sales_link)+'&quot;, this)" style="width:100%;height:40px;border-radius:10px;border:1px solid var(--c);background:rgba(58,111,160,.12);color:var(--t1);font-size:13px;font-weight:700;cursor:pointer">Copiar mi link de venta</button>'+
+      '</div>';
+    }).join('');
+  }catch(e){ if(box) box.innerHTML = '<div style="padding:14px;color:#C44040;font-size:13px;text-align:center">'+escapeHtml(e.message||'Error')+'</div>'; }
+}
+
 function procesarQrCreditCallback(){
   var params = new URLSearchParams(window.location.search);
   var st = params.get('qr_credit');
@@ -6052,6 +6241,23 @@ document.addEventListener('DOMContentLoaded', function(){
     if(eventoId){
       history.replaceState({}, document.title, window.location.pathname);
       setTimeout(function(){ seleccionarEventoCompraRemoto(eventoId); }, 300);
+    }
+  })();
+
+  /* link de venta de una RRPP/pública: ?rrpp=CODIGO&ev=EVENTO_ID
+     Guardamos el código (persiste para la compra, aunque el comprador tenga
+     que loguearse antes) y abrimos el evento. */
+  (function(){
+    var params = new URLSearchParams(window.location.search);
+    var rrppCod = params.get('rrpp');
+    var evId = params.get('ev');
+    if(rrppCod){
+      window._RRPP_CODIGO = rrppCod;
+      try{ localStorage.setItem('ej-rrpp', rrppCod); }catch(e){}
+    }
+    if(rrppCod || evId){
+      history.replaceState({}, document.title, window.location.pathname);
+      if(evId){ setTimeout(function(){ seleccionarEventoCompraRemoto(evId); }, 300); }
     }
   })();
   /* restaurar sección pública (no necesita auth) */
