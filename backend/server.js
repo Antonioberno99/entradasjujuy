@@ -524,7 +524,7 @@ async function sendMailResilient(message, context) {
 // ── Health check
 app.get('/health', (req, res) => res.json({
   ok: true,
-  build: 'emergency-global-green-2026-06-20',
+  build: 'ticket-limit-date-2026-06-30',
   smtp: safeSmtpInfo(),
   mercadopago: mpConfigStatus(),
 }));
@@ -1235,6 +1235,39 @@ function parseCapacity(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 100;
 }
 
+function normalizeDateOnly(value) {
+  const raw = String(value || '').trim();
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10);
+  const d = parseInt(m[3], 10);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (
+    dt.getUTCFullYear() !== y ||
+    dt.getUTCMonth() !== mo - 1 ||
+    dt.getUTCDate() !== d
+  ) return '';
+  return raw;
+}
+
+function formatDateOnlyAr(value) {
+  const m = String(value || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return '';
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getUTCFullYear()}`;
+}
+
+function ticketLimitLabel(entrada) {
+  const horaLimite = entrada?.hora_limite ? String(entrada.hora_limite).slice(0, 5) : '';
+  if (!horaLimite) return '';
+  const fechaLimite = formatDateOnlyAr(entrada?.fecha_limite);
+  return fechaLimite ? `${fechaLimite} a las ${horaLimite}` : `las ${horaLimite}`;
+}
+
 function htmlEvent(row) {
   const tipos = row.tipos_entrada || [];
   const firstTipo = Array.isArray(tipos) ? tipos[0] : null;
@@ -1262,7 +1295,7 @@ async function getEventWithTickets(eventId) {
       COALESCE(json_agg(json_build_object(
         'id', t.id, 'nombre', t.nombre,
         'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-        'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
+        'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'fecha_limite', t.fecha_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
       ) ORDER BY t.display_order ASC, t.precio_base ASC) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
     FROM eventos e
     LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -1309,6 +1342,7 @@ function normalizarTipoEntrada(t, esGratis){
   const cap = Math.max(1, parseInt(t?.capacidad ?? t?.capacity ?? 100, 10) || 100);
   let horaLimite = String(t?.hora_limite || '').trim();
   if(horaLimite && !/^\d{2}:\d{2}/.test(horaLimite)) horaLimite = '';
+  const fechaLimite = normalizeDateOnly(t?.fecha_limite ?? t?.fechaLimite ?? t?.fecha_limite_qr);
   const promoPaga = Math.max(0, parseInt(t?.promo_paga || 0, 10) || 0);
   const promoRecibe = Math.max(0, parseInt(t?.promo_recibe || 0, 10) || 0);
   /* la promo solo aplica si recibe > paga > 0 */
@@ -1318,6 +1352,7 @@ function normalizarTipoEntrada(t, esGratis){
     id,
     nombre, precio, capacidad: cap,
     hora_limite: horaLimite || null,
+    fecha_limite: (horaLimite && fechaLimite) ? fechaLimite : null,
     promo_paga: promoValida ? promoPaga : 0,
     promo_recibe: promoValida ? promoRecibe : 0,
     descripcion_extra: desc,
@@ -1417,10 +1452,10 @@ async function createOrSaveEvent(req, res, activo) {
         await client.query(`
           INSERT INTO tipos_entrada (
             evento_id, nombre, descripcion, precio_base, fee_organizador,
-            capacidad, disponibles, hora_limite, promo_paga, promo_recibe, descripcion_extra
+            capacidad, disponibles, hora_limite, fecha_limite, promo_paga, promo_recibe, descripcion_extra
           )
-          VALUES ($1,$2,'',$3,0,$4,$4,$5,$6,$7,$8)
-        `, [rows[0].id, t.nombre, t.precio, t.capacidad, t.hora_limite, t.promo_paga, t.promo_recibe, t.descripcion_extra]);
+          VALUES ($1,$2,'',$3,0,$4,$4,$5,$6,$7,$8,$9)
+        `, [rows[0].id, t.nombre, t.precio, t.capacidad, t.hora_limite, t.fecha_limite, t.promo_paga, t.promo_recibe, t.descripcion_extra]);
       }
 
       await client.query('COMMIT');
@@ -1590,19 +1625,20 @@ app.put('/api/productos/eventos/:id', requireAuth, async (req, res) => {
             capacidad = $3,
             disponibles = GREATEST(0, disponibles + $4),
             hora_limite = $5,
-            promo_paga = $6,
-            promo_recibe = $7,
-            descripcion_extra = $8,
-            display_order = $9
-          WHERE id = $10
-        `, [tn.nombre, tn.precio, tn.capacidad, delta, tn.hora_limite, tn.promo_paga, tn.promo_recibe, tn.descripcion_extra, displayOrder, existente.id]);
+            fecha_limite = $6,
+            promo_paga = $7,
+            promo_recibe = $8,
+            descripcion_extra = $9,
+            display_order = $10
+          WHERE id = $11
+        `, [tn.nombre, tn.precio, tn.capacidad, delta, tn.hora_limite, tn.fecha_limite, tn.promo_paga, tn.promo_recibe, tn.descripcion_extra, displayOrder, existente.id]);
       } else {
         await client.query(`
           INSERT INTO tipos_entrada (
             evento_id, nombre, descripcion, precio_base, fee_organizador,
-            capacidad, disponibles, hora_limite, promo_paga, promo_recibe, descripcion_extra, display_order
-          ) VALUES ($1,$2,'',$3,0,$4,$4,$5,$6,$7,$8,$9)
-        `, [eventId, tn.nombre, tn.precio, tn.capacidad, tn.hora_limite, tn.promo_paga, tn.promo_recibe, tn.descripcion_extra, displayOrder]);
+            capacidad, disponibles, hora_limite, fecha_limite, promo_paga, promo_recibe, descripcion_extra, display_order
+          ) VALUES ($1,$2,'',$3,0,$4,$4,$5,$6,$7,$8,$9,$10)
+        `, [eventId, tn.nombre, tn.precio, tn.capacidad, tn.hora_limite, tn.fecha_limite, tn.promo_paga, tn.promo_recibe, tn.descripcion_extra, displayOrder]);
       }
     }
 
@@ -1675,7 +1711,7 @@ app.get('/api/productos/mios', requireAuth, async (req, res) => {
         COALESCE(json_agg(json_build_object(
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
+          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'fecha_limite', t.fecha_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
         ) ORDER BY t.display_order ASC, t.precio_base ASC) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -1904,6 +1940,8 @@ app.post('/api/organizador/entradas-regalo', giftLimiter, requireAuth, async (re
         fecha: tipo.fecha,
         hora: tipo.hora,
         lugar: tipo.lugar,
+        hora_limite: tipo.hora_limite,
+        fecha_limite: tipo.fecha_limite,
         numero: i + 1,
         total_tipo: cantidad,
       });
@@ -2144,6 +2182,7 @@ app.post('/api/organizador/qr-credits/usar', giftLimiter, requireAuth, async (re
         fecha: tipo.fecha, hora: tipo.hora, lugar: tipo.lugar,
         descripcion_evento: tipo.descripcion_evento,
         hora_limite: tipo.hora_limite,
+        fecha_limite: tipo.fecha_limite,
         numero: i + 1, total_tipo: cantidad,
       });
     }
@@ -2225,7 +2264,7 @@ app.get('/api/organizador/entradas-offline', requireAuth, async (req, res) => {
   try {
     const { rows } = await db.query(`
       SELECT en.id, en.estado, en.token_qr,
-             te.id AS tipo_id, te.nombre AS tipo, te.hora_limite,
+             te.id AS tipo_id, te.nombre AS tipo, te.hora_limite, te.fecha_limite,
              ev.id AS evento_id, ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar,
              o.comprador_nombre, o.comprador_dni
       FROM entradas en
@@ -2341,7 +2380,7 @@ app.get('/api/eventos', async (req, res) => {
         COALESCE(json_agg(json_build_object(
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
+          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'fecha_limite', t.fecha_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
         ) ORDER BY t.display_order ASC, t.precio_base ASC) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -2368,7 +2407,7 @@ app.get('/api/eventos/:id', async (req, res) => {
         COALESCE(json_agg(json_build_object(
           'id', t.id, 'nombre', t.nombre,
           'precio_base', t.precio_base, 'fee_organizador', t.fee_organizador,
-          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
+          'precio_total', t.precio_base + t.fee_organizador, 'capacidad', t.capacidad, 'disponibles', t.disponibles, 'hora_limite', t.hora_limite, 'fecha_limite', t.fecha_limite, 'promo_paga', t.promo_paga, 'promo_recibe', t.promo_recibe, 'descripcion_extra', t.descripcion_extra
         ) ORDER BY t.display_order ASC, t.precio_base ASC) FILTER (WHERE t.id IS NOT NULL), '[]') AS tipos_entrada
       FROM eventos e
       LEFT JOIN tipos_entrada t ON t.evento_id = e.id
@@ -2750,7 +2789,7 @@ async function procesarPago(ordenId, pago) {
   );
  
   const { rows: items } = await db.query(`
-    SELECT oi.*, te.nombre AS tipo_nombre, te.hora_limite, te.promo_paga, te.promo_recibe,
+    SELECT oi.*, te.nombre AS tipo_nombre, te.hora_limite, te.fecha_limite, te.promo_paga, te.promo_recibe,
            ev.id AS evento_id, ev.nombre AS evento_nombre, ev.fecha, ev.hora, ev.lugar,
            ev.descripcion AS descripcion_evento
     FROM orden_items oi
@@ -2813,6 +2852,7 @@ async function procesarPago(ordenId, pago) {
         evento: item.evento_nombre, fecha: item.fecha, hora: item.hora, lugar: item.lugar,
         descripcion_evento: item.descripcion_evento,
         hora_limite: item.hora_limite,
+        fecha_limite: item.fecha_limite,
         fecha_compra: orden.created_at || orden.fecha_pago,
         numero: i+1, total_tipo: totalQrs,
       });
@@ -2848,7 +2888,7 @@ app.get('/api/orden/:id', requireAuth, async (req, res) => {
     if (orden.estado === 'pagada' || orden.estado === 'cortesia') {
       const { rows: entradas } = await db.query(`
         SELECT en.id, en.estado, en.numero, en.token_qr,
-               te.nombre AS tipo, te.hora_limite, te.promo_paga, te.promo_recibe, te.descripcion_extra,
+               te.nombre AS tipo, te.hora_limite, te.fecha_limite, te.promo_paga, te.promo_recibe, te.descripcion_extra,
                ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar, ev.descripcion AS descripcion_evento
         FROM entradas en
         JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
@@ -2891,7 +2931,7 @@ app.post('/api/orden/:id/reenviar', requireAuth, async (req, res) => {
 
     const { rows: entradasDb } = await db.query(`
       SELECT en.id, en.numero, en.token_qr,
-             te.nombre AS tipo, te.hora_limite, te.promo_paga, te.promo_recibe,
+             te.nombre AS tipo, te.hora_limite, te.fecha_limite, te.promo_paga, te.promo_recibe,
              ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar, ev.descripcion AS descripcion_evento,
              COUNT(*) OVER (PARTITION BY en.tipo_entrada_id) AS total_tipo
       FROM entradas en
@@ -2920,7 +2960,7 @@ app.get('/api/mis-entradas', requireAuth, async (req, res) => {
       SELECT o.id AS orden_id, o.comprador_email, o.comprador_nombre, o.estado AS orden_estado,
              o.fecha_pago, o.created_at,
              en.id AS entrada_id, en.numero, en.estado AS entrada_estado, en.token_qr,
-             te.nombre AS tipo, te.hora_limite, te.promo_paga, te.promo_recibe, te.descripcion_extra,
+             te.nombre AS tipo, te.hora_limite, te.fecha_limite, te.promo_paga, te.promo_recibe, te.descripcion_extra,
              ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar, ev.descripcion AS descripcion_evento
       FROM ordenes o
       JOIN entradas en ON en.orden_id = o.id
@@ -2954,6 +2994,7 @@ app.get('/api/mis-entradas', requireAuth, async (req, res) => {
         token_qr: row.token_qr,
         tipo: row.tipo,
         hora_limite: row.hora_limite,
+        fecha_limite: row.fecha_limite,
         promo_paga: row.promo_paga,
         promo_recibe: row.promo_recibe,
         descripcion_extra: row.descripcion_extra,
@@ -2973,26 +3014,39 @@ app.get('/api/mis-entradas', requireAuth, async (req, res) => {
   }
 });
  
+function datePartsFromLimitBase(value) {
+  const m = String(value || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    return {
+      y: parseInt(m[1], 10),
+      mo: parseInt(m[2], 10) - 1,
+      day: parseInt(m[3], 10),
+    };
+  }
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return { y: d.getUTCFullYear(), mo: d.getUTCMonth(), day: d.getUTCDate() };
+}
+
 /* Instante (ms epoch) en que vence una hora_limite "HH:MM".
-   El límite es una hora local de Jujuy (UTC-3, sin DST) sobre la fecha del
-   evento. Si el límite es de madrugada (anterior al inicio del evento, o < 12h
-   cuando no hay hora de inicio) corresponde al día SIGUIENTE — así un early bird
-   "hasta las 02:00" sigue válido a las 23:00 del día del evento.
-   Devuelve null si no se puede calcular (entonces no se aplica el límite). */
-function deadlineLimiteMs(fechaEvento, horaInicio, horaLimite) {
+   Si fecha_limite viene cargada, se usa esa fecha exacta. Si no viene,
+   se mantiene la logica anterior: limites de madrugada van al dia siguiente
+   del evento. Jujuy = UTC-3, sin DST. */
+function deadlineLimiteMs(fechaEvento, horaInicio, horaLimite, fechaLimite) {
   try {
     const m = String(horaLimite || '').slice(0, 5).match(/^(\d{1,2}):(\d{2})$/);
     if (!m) return null;
     const lh = parseInt(m[1], 10), lm = parseInt(m[2], 10);
-    const d = new Date(fechaEvento);
-    if (isNaN(d.getTime())) return null;
-    const y = d.getUTCFullYear(), mo = d.getUTCMonth(), day = d.getUTCDate();
+    const explicitDate = datePartsFromLimitBase(fechaLimite);
+    const baseDate = explicitDate || datePartsFromLimitBase(fechaEvento);
+    if (!baseDate) return null;
     const sh = parseInt(String(horaInicio || '').slice(0, 2), 10);
     let extraDay = 0;
-    if (Number.isFinite(sh)) { if (lh < sh) extraDay = 1; }
-    else if (lh < 12) { extraDay = 1; }
-    /* Jujuy = UTC-3 → un instante local equivale a UTC = local + 3h */
-    return Date.UTC(y, mo, day + extraDay, lh + 3, lm, 0);
+    if (!explicitDate) {
+      if (Number.isFinite(sh)) { if (lh < sh) extraDay = 1; }
+      else if (lh < 12) { extraDay = 1; }
+    }
+    return Date.UTC(baseDate.y, baseDate.mo, baseDate.day + extraDay, lh + 3, lm, 0);
   } catch { return null; }
 }
 
@@ -3017,8 +3071,8 @@ app.post('/api/validar-qr', async (req, res) => {
 
     const { rows } = await db.query(`
       SELECT en.id, en.orden_id, en.estado, en.numero, en.fecha_uso,
-             te.nombre AS tipo, ev.id AS evento_id, ev.nombre AS evento,
-             ev.fecha, ev.hora, ev.lugar,
+             te.nombre AS tipo, te.hora_limite, te.fecha_limite,
+             ev.id AS evento_id, ev.nombre AS evento, ev.fecha, ev.hora, ev.lugar,
              o.comprador_nombre, o.comprador_dni
       FROM entradas en
       JOIN tipos_entrada te ON te.id = en.tipo_entrada_id
@@ -3037,7 +3091,19 @@ app.post('/api/validar-qr', async (req, res) => {
       return res.json({ ok: true, valida: false, motivo: 'Entrada cancelada', entrada });
     }
 
-    /* Marcar usada de forma atómica: sólo el primer escaneo gana. */
+    if (entrada.hora_limite) {
+      const venceMs = deadlineLimiteMs(entrada.fecha, entrada.hora, entrada.hora_limite, entrada.fecha_limite);
+      if (venceMs && Date.now() > venceMs) {
+        return res.json({
+          ok: true,
+          valida: false,
+          motivo: `Esta entrada solo era valida hasta ${ticketLimitLabel(entrada)}`,
+          entrada,
+        });
+      }
+    }
+ 
+    /* Marcar usada de forma atomica: solo el primer escaneo gana. */
     const used = await db.query(
       "UPDATE entradas SET estado='usada', fecha_uso=NOW() WHERE id=$1 AND estado='valida' RETURNING fecha_uso",
       [entrada.id]
@@ -3115,7 +3181,7 @@ async function enviarEmail(orden, entradas) {
     : '';
 
   const qrHtml = entradasValidas.map(e => {
-    const horaLim = e.hora_limite ? String(e.hora_limite).slice(0, 5) : '';
+    const limiteLabel = ticketLimitLabel(e);
     const fechaFmt = e.fecha ? new Date(e.fecha).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : '';
     return `
     <div style="border:2px solid #C4692B;border-radius:20px;padding:16px;margin-bottom:18px;background:#ffffff;box-shadow:0 8px 22px rgba(10,7,4,.08)">
@@ -3133,7 +3199,7 @@ async function enviarEmail(orden, entradas) {
         <img src="cid:qr-${e.id}@entradasjujuy" style="width:132px;height:132px;display:block;margin:0 auto"/>
       </div>
       <p style="text-align:center;font-size:10px;color:#8b7a66;margin:10px 0 6px">Mostrá este QR en la puerta</p>
-      ${horaLim ? `<div style="margin-top:12px;padding:8px 12px;background:#fff5e6;border:1px solid #ffd49a;border-radius:10px;text-align:center;font-size:11px;color:#a05a10;line-height:1.4"><strong>Válido hasta las ${horaLim} hs</strong> — el QR no se podrá escanear después de esa hora</div>` : ''}
+      ${limiteLabel ? `<div style="margin-top:12px;padding:8px 12px;background:#fff5e6;border:1px solid #ffd49a;border-radius:10px;text-align:center;font-size:11px;color:#a05a10;line-height:1.4"><strong>Valido hasta ${escapeHtml(limiteLabel)}</strong> — el QR no se podra escanear despues de ese momento</div>` : ''}
     </div>
   `;
   }).join('');
@@ -3194,6 +3260,7 @@ async function enviarEmail(orden, entradas) {
 async function autoMigrate(){
   try {
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS hora_limite TIME`);
+    await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS fecha_limite DATE`);
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS promo_paga INT DEFAULT 0`);
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS promo_recibe INT DEFAULT 0`);
     await db.query(`ALTER TABLE tipos_entrada ADD COLUMN IF NOT EXISTS descripcion_extra TEXT`);

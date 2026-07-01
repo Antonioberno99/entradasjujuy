@@ -651,97 +651,38 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
     }
   }
 
-  /* EMERGENCIA GLOBAL: toda lectura se muestra verde sin esperar red, sesión,
-     firma, caché ni respuesta del backend. Los QR EntradasJujuy reconocibles
-     conservan entrada_id y se encolan para sincronizar; el resto queda auditado
-     únicamente en el historial local del dispositivo. TEMPORAL. */
-  function validarVerdeGlobal(token){
-    var payload = decodeJwtPayload(token);
-    var entradaId = String(payload?.entrada_id || '').trim();
-    var idValido = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entradaId);
-    var entrada;
-
-    if(idValido){
-      entrada = entradasCache[entradaId] || {
-        id: entradaId,
-        evento: 'Entrada del evento',
-        tipo: 'Acceso',
-        estado: 'valida'
-      };
-      entrada.estado = 'usada';
-      entradasCache[entradaId] = entrada;
-      saveCache();
-      if(!queue.some(function(v){ return String(v.entrada_id) === entradaId; })){
-        queue.push({ entrada_id: entradaId, validated_at: new Date().toISOString() });
-        saveQueue();
-      }
-      if(navigator.onLine) setTimeout(flushQueue, 500);
-    } else {
-      var hash = 0;
-      for(var i=0; i<token.length; i++) hash = ((hash << 5) - hash + token.charCodeAt(i)) | 0;
-      entrada = {
-        id: 'emergencia-' + Math.abs(hash),
-        evento: 'Acceso de emergencia',
-        tipo: 'Validación manual'
-      };
-    }
-
-    updateCountsUI();
-    mostrarYRegistrar('ok', 'Entrada verificada. Acceso habilitado.', entrada);
+  function datePartsFromLimitBase(value){
+    var m = String(value || '').slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(m) return { y: parseInt(m[1],10), mo: parseInt(m[2],10) - 1, day: parseInt(m[3],10) };
+    var d = new Date(value);
+    if(isNaN(d.getTime())) return null;
+    return { y: d.getUTCFullYear(), mo: d.getUTCMonth(), day: d.getUTCDate() };
   }
 
-  /* MODO PUERTA TEMPORAL: durante el evento, un QR con estructura de ticket y
-     entrada_id UUID se acepta aunque la sesión, red o caché fallen. Se registra
-     localmente y queda en cola para que el backend lo marque usado al sincronizar. */
-  function validarEmergencia(token, payload, causa){
-    payload = payload || decodeJwtPayload(token);
-    var entradaId = String(payload?.entrada_id || '').trim();
-    if(!payload || (payload.type && payload.type !== 'ticket') ||
-       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entradaId)){
-      mostrarYRegistrar('error', 'QR sin formato de entrada.');
-      return;
-    }
-    var entrada = entradasCache[entradaId] || {
-      id: entradaId,
-      evento: 'Entrada del evento',
-      tipo: 'Acceso',
-      estado: 'valida'
-    };
-    if(entrada.estado === 'usada'){
-      mostrarYRegistrar('used', 'Entrada ya utilizada (validada antes).', entrada);
-      return;
-    }
-    if(entrada.estado === 'cancelada'){
-      mostrarYRegistrar('error', 'Entrada cancelada.', entrada);
-      return;
-    }
-    entrada.estado = 'usada';
-    entradasCache[entradaId] = entrada;
-    saveCache();
-    if(!queue.some(function(v){ return String(v.entrada_id) === entradaId; })){
-      queue.push({ entrada_id: entradaId, validated_at: new Date().toISOString() });
-      saveQueue();
-    }
-    updateCountsUI();
-    mostrarYRegistrar('ok', 'Entrada válida. Modo puerta activo.', entrada);
-    if(navigator.onLine) setTimeout(flushQueue, 500);
+  function formatearLimiteEntrada(entrada){
+    if(!entrada || !entrada.hora_limite) return '';
+    var hora = String(entrada.hora_limite || '').slice(0,5);
+    var m = String(entrada.fecha_limite || '').slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? (m[3] + '/' + m[2] + '/' + m[1] + ' ' + hora) : hora;
   }
 
-  /* Instante (ms) en que vence una hora_limite "HH:MM" (hora local Jujuy UTC-3
-     sobre la fecha del evento; +1 día si es de madrugada). null si no aplica. */
-  function deadlineLimiteMs(fechaEvento, horaInicio, horaLimite){
+  /* Instante (ms) en que vence una hora_limite "HH:MM". Si fecha_limite viene
+     cargada, se usa esa fecha exacta; si no, se mantiene la logica anterior. */
+  function deadlineLimiteMs(fechaEvento, horaInicio, horaLimite, fechaLimite){
     try{
       var m = String(horaLimite || '').slice(0,5).match(/^(\d{1,2}):(\d{2})$/);
       if(!m) return null;
       var lh = parseInt(m[1],10), lm = parseInt(m[2],10);
-      var d = new Date(fechaEvento);
-      if(isNaN(d.getTime())) return null;
-      var y = d.getUTCFullYear(), mo = d.getUTCMonth(), day = d.getUTCDate();
+      var explicitDate = datePartsFromLimitBase(fechaLimite);
+      var baseDate = explicitDate || datePartsFromLimitBase(fechaEvento);
+      if(!baseDate) return null;
       var sh = parseInt(String(horaInicio || '').slice(0,2),10);
       var extraDay = 0;
-      if(!isNaN(sh)){ if(lh < sh) extraDay = 1; }
-      else if(lh < 12){ extraDay = 1; }
-      return Date.UTC(y, mo, day + extraDay, lh + 3, lm, 0);
+      if(!explicitDate){
+        if(!isNaN(sh)){ if(lh < sh) extraDay = 1; }
+        else if(lh < 12){ extraDay = 1; }
+      }
+      return Date.UTC(baseDate.y, baseDate.mo, baseDate.day + extraDay, lh + 3, lm, 0);
     }catch(e){ return null; }
   }
 
@@ -770,9 +711,9 @@ footer{margin-top:auto;padding:16px 0 8px;text-align:center;font-size:10px;color
        Comparar strings HH:MM rompía ese caso. */
     if(entrada.hora_limite){
       try{
-        var venceMs = deadlineLimiteMs(entrada.fecha, entrada.hora, entrada.hora_limite);
+        var venceMs = deadlineLimiteMs(entrada.fecha, entrada.hora, entrada.hora_limite, entrada.fecha_limite);
         if(venceMs && Date.now() > venceMs){
-          mostrarYRegistrar('error', 'Esta entrada solo era válida hasta las ' + String(entrada.hora_limite).slice(0,5), entrada);
+          mostrarYRegistrar('error', 'Esta entrada solo era válida hasta ' + formatearLimiteEntrada(entrada), entrada);
           return;
         }
       }catch(e){}

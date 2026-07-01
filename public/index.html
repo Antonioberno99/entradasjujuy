@@ -4077,7 +4077,7 @@ function renderPanelMisEntradas(orders){
       (descripcionEvento ? '<div style="margin-bottom:12px;padding:10px 12px;background:rgba(196,105,43,.06);border:1px solid rgba(196,105,43,.18);border-left:3px solid var(--t);border-radius:8px"><div style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin-bottom:5px;font-weight:600">Información del evento</div><div style="font-size:12px;color:var(--t1);line-height:1.55;white-space:pre-wrap">'+escapeHtml(descripcionEvento)+'</div></div>' : '')+
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">'+entradas.map(function(e){
         var fechaFmt = e.fecha ? formatearFecha(String(e.fecha).slice(0,10)) : '';
-        var horaLim = e.hora_limite ? String(e.hora_limite).slice(0,5) : '';
+        var limiteEntrada = formatearLimiteEntrada(e);
         return '<div class="qr-ticket" style="text-align:left">'+
           '<div class="qr-ticket-logo">EntradasJujuy</div>'+
           '<div class="qr-ticket-nm">'+escapeHtml(e.evento || 'Entrada')+'</div>'+
@@ -4088,7 +4088,7 @@ function renderPanelMisEntradas(orders){
             '<div style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin-bottom:2px">Tipo de entrada</div>'+
             '<div style="font-size:13px;font-weight:700;color:var(--t1);line-height:1.2">'+escapeHtml(e.tipo || 'General')+'</div>'+
             '<div style="font-size:11px;color:var(--t2);margin-top:3px">N° '+escapeHtml(String(e.numero || ''))+' · '+escapeHtml(fechaFmt || 'Sin fecha')+(e.hora ? ' · '+escapeHtml(e.hora) : '')+'</div>'+
-            (horaLim ? '<div style="margin-top:6px;padding:5px 8px;background:rgba(232,160,32,.12);border:1px solid rgba(232,160,32,.3);border-radius:5px;font-size:10px;color:#E8A020;text-align:center;line-height:1.3"><strong>Válido hasta las '+escapeHtml(horaLim)+' hs</strong></div>' : '')+
+            (limiteEntrada ? '<div style="margin-top:6px;padding:5px 8px;background:rgba(232,160,32,.12);border:1px solid rgba(232,160,32,.3);border-radius:5px;font-size:10px;color:#E8A020;text-align:center;line-height:1.3"><strong>Valido hasta '+escapeHtml(limiteEntrada)+'</strong></div>' : '')+
           '</div>'+
         '</div>';
       }).join('')+'</div>'+
@@ -4655,7 +4655,8 @@ function actualizarVistaCompra(ev){
       var precioMostrar = promoActiva ? (precioBaseUnit * tipo.promo_paga) : precioBaseUnit;
       var detalles = [];
       if(promoActiva) detalles.push('Pack '+tipo.promo_recibe+' QR x '+tipo.promo_paga+' entradas');
-      if(tipo.hora_limite) detalles.push('Válido hasta '+String(tipo.hora_limite).slice(0,5));
+      var limiteTipo = formatearLimiteEntrada(tipo);
+      if(limiteTipo) detalles.push('Valido hasta '+limiteTipo);
       if(name){
         name.innerHTML = escapeHtml(nombreTipo) +
           (detalles.length ? '<div style="font-size:11px;color:var(--t3);font-weight:300;margin-top:2px;line-height:1.3">'+detalles.map(escapeHtml).join(' · ')+'</div>' : '');
@@ -4915,6 +4916,7 @@ function leerTiposEntradaForm(){
     var precio = parseInt(get('precio')||'0', 10) || 0;
     var capacidad = parseInt(get('capacidad')||'100', 10) || 100;
     var horaLimite = get('hora_limite') || '';
+    var fechaLimite = get('fecha_limite') || '';
     var promoPaga = parseInt(get('promo_paga')||'0', 10) || 0;
     var promoRecibe = parseInt(get('promo_recibe')||'0', 10) || 0;
     result.push({
@@ -4922,6 +4924,7 @@ function leerTiposEntradaForm(){
       precio_base: precio,
       capacidad: capacidad,
       hora_limite: horaLimite,
+      fecha_limite: fechaLimite,
       promo_paga: promoPaga,
       promo_recibe: promoRecibe,
     });
@@ -4947,7 +4950,11 @@ function renderTipoEntradaRow(data, isFirst){
     '</div>'+
     '<details style="margin-top:6px"><summary style="font-size:11px;color:var(--t3);cursor:pointer;padding:4px 0;user-select:none">Opciones avanzadas (horario y promos)</summary>'+
       '<div style="padding-top:10px">'+
-        '<div class="fg" style="margin-bottom:8px"><label class="fl">Hora límite del QR <span style="color:var(--t3);font-weight:300">(opcional)</span></label><input class="fi" data-field="hora_limite" type="time" value="'+escapeHtml(data.hora_limite || '')+'"><div style="font-size:11px;color:var(--t3);margin-top:4px">Ej: 23:00. El QR no se podrá escanear después de esa hora (útil para early bird).</div></div>'+
+        '<div class="fg-row" style="margin-bottom:8px">'+
+          '<div class="fg" style="margin:0"><label class="fl">Fecha limite del QR <span style="color:var(--t3);font-weight:300">(opcional)</span></label><input class="fi" data-field="fecha_limite" type="date" value="'+escapeHtml(String(data.fecha_limite || '').slice(0,10))+'"></div>'+
+          '<div class="fg" style="margin:0"><label class="fl">Hora limite del QR <span style="color:var(--t3);font-weight:300">(opcional)</span></label><input class="fi" data-field="hora_limite" type="time" value="'+escapeHtml(String(data.hora_limite || '').slice(0,5))+'"></div>'+
+        '</div>'+
+        '<div style="font-size:11px;color:var(--t3);margin:0 0 8px;line-height:1.4">Ej: si el evento figura viernes pero el limite es sabado 02:00, carga la fecha del sabado y la hora 02:00. Si dejas la fecha vacia, se mantiene la logica anterior.</div>'+
         '<div class="fg-row" style="margin:0"><div class="fg" style="margin:0"><label class="fl">Promo: paga</label><input class="fi" data-field="promo_paga" type="number" placeholder="0" value="'+(data.promo_paga || '')+'"></div><div class="fg" style="margin:0"><label class="fl">y recibe</label><input class="fi" data-field="promo_recibe" type="number" placeholder="0" value="'+(data.promo_recibe || '')+'"></div></div>'+
         '<div style="font-size:11px;color:var(--t3);margin-top:6px;line-height:1.4">Ej: paga 3 y recibe 4 → el comprador paga 3 entradas y el sistema le manda 4 QRs. Dejá ambos en 0 para venta normal.</div>'+
       '</div>'+
@@ -5003,9 +5010,13 @@ function renderTipoEntradaEditRow(data){
       '<div class="fg" style="margin:0"><label class="fl">Precio ($)</label><input class="fi" data-field="precio" type="number" placeholder="3000" value="'+(data.precio_base || '')+'"></div>'+
       '<div class="fg" style="margin:0"><label class="fl">Capacidad</label><input class="fi" data-field="capacidad" type="number" placeholder="100" value="'+(data.capacidad || '')+'"></div>'+
     '</div>'+
-    '<details style="margin-top:6px"'+((data.hora_limite || data.promo_paga) ? ' open' : '')+'><summary style="font-size:11px;color:var(--t3);cursor:pointer;padding:4px 0;user-select:none">Opciones avanzadas (horario y promos)</summary>'+
+    '<details style="margin-top:6px"'+((data.hora_limite || data.fecha_limite || data.promo_paga) ? ' open' : '')+'><summary style="font-size:11px;color:var(--t3);cursor:pointer;padding:4px 0;user-select:none">Opciones avanzadas (horario y promos)</summary>'+
       '<div style="padding-top:10px">'+
-        '<div class="fg" style="margin-bottom:8px"><label class="fl">Hora límite del QR</label><input class="fi" data-field="hora_limite" type="time" value="'+escapeHtml(String(data.hora_limite || '').slice(0,5))+'"><div style="font-size:11px;color:var(--t3);margin-top:4px">Ej: 23:00. El QR no se podrá escanear después de esa hora.</div></div>'+
+        '<div class="fg-row" style="margin-bottom:8px">'+
+          '<div class="fg" style="margin:0"><label class="fl">Fecha limite del QR</label><input class="fi" data-field="fecha_limite" type="date" value="'+escapeHtml(String(data.fecha_limite || '').slice(0,10))+'"></div>'+
+          '<div class="fg" style="margin:0"><label class="fl">Hora limite del QR</label><input class="fi" data-field="hora_limite" type="time" value="'+escapeHtml(String(data.hora_limite || '').slice(0,5))+'"></div>'+
+        '</div>'+
+        '<div style="font-size:11px;color:var(--t3);margin:0 0 8px;line-height:1.4">Ej: evento cargado viernes y limite sabado 02:00. Carga la fecha del sabado y la hora 02:00.</div>'+
         '<div class="fg-row" style="margin:0"><div class="fg" style="margin:0"><label class="fl">Promo: paga</label><input class="fi" data-field="promo_paga" type="number" placeholder="0" value="'+(data.promo_paga || '')+'"></div><div class="fg" style="margin:0"><label class="fl">y recibe</label><input class="fi" data-field="promo_recibe" type="number" placeholder="0" value="'+(data.promo_recibe || '')+'"></div></div>'+
       '</div>'+
     '</details>';
@@ -5068,6 +5079,7 @@ function leerTiposEntradaEdit(){
     var precio = parseInt(get('precio')||'0', 10) || 0;
     var capacidad = parseInt(get('capacidad')||'100', 10) || 100;
     var horaLimite = get('hora_limite') || '';
+    var fechaLimite = get('fecha_limite') || '';
     var promoPaga = parseInt(get('promo_paga')||'0', 10) || 0;
     var promoRecibe = parseInt(get('promo_recibe')||'0', 10) || 0;
     result.push({
@@ -5076,6 +5088,7 @@ function leerTiposEntradaEdit(){
       precio_base: precio,
       capacidad: capacidad,
       hora_limite: horaLimite,
+      fecha_limite: fechaLimite,
       promo_paga: promoPaga,
       promo_recibe: promoRecibe,
     });
@@ -5375,6 +5388,7 @@ function editarEvento(eventId){
           precio_base: Math.round(Number(t.precio_total || t.precio_base || 0)),
           capacidad: t.capacidad,
           hora_limite: t.hora_limite,
+          fecha_limite: t.fecha_limite,
           promo_paga: t.promo_paga,
           promo_recibe: t.promo_recibe,
         });
@@ -5477,6 +5491,13 @@ function formatearFecha(d){
   var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if(m) return m[3] + '/' + m[2] + '/' + m[1];
   return s;
+}
+
+function formatearLimiteEntrada(item){
+  if(!item || !item.hora_limite) return '';
+  var hora = String(item.hora_limite || '').slice(0,5);
+  var fecha = item.fecha_limite ? formatearFecha(String(item.fecha_limite).slice(0,10)) : '';
+  return fecha ? (fecha + ' ' + hora) : hora;
 }
 
 /* ============================================================

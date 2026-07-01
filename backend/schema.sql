@@ -62,6 +62,8 @@ CREATE TABLE tipos_entrada (
   -- org_recibe   = precio_total - comision_ej
   capacidad        INT NOT NULL,
   disponibles      INT NOT NULL,
+  hora_limite       TIME,
+  fecha_limite      DATE,
   created_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
