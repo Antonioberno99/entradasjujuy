@@ -1766,6 +1766,27 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
             <strong style="color:#9A8670">¿Cómo funciona?</strong> Cobrás por transferencia/efectivo y tocás <strong style="color:#E8A020">"Enviar QR a un comprador"</strong>: elegís el evento, cargás el email y se le manda el QR usando tus créditos (1 crédito por QR). Si no le llegó, usás <strong style="color:#E8A020">"Reenviar un QR ya vendido"</strong>.
           </div>
         </div>
+
+        <!-- ============= CARD PÚBLICAS / RRPP (Resumen) ============= -->
+        <div style="background:linear-gradient(135deg,#0a1826,#04101a);border:1px solid rgba(58,111,160,0.4);border-radius:var(--r);padding:16px;margin-top:12px">
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
+            <div style="width:42px;height:42px;border-radius:10px;background:rgba(58,111,160,0.18);border:1px solid rgba(58,111,160,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3A6FA0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:9px;letter-spacing:1.8px;text-transform:uppercase;color:#3A6FA0;font-weight:700;margin-bottom:3px">Públicas / RRPP</div>
+              <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:900;color:#EAE0D0;line-height:1.15;margin-bottom:4px">Gente que vende por vos</div>
+              <div style="font-size:12px;color:#9A8670;line-height:1.45">Invitá públicas a vender un evento. Cada una recibe su link por email; todo lo que venda queda registrado a su nombre.</div>
+            </div>
+          </div>
+          <button onclick="abrirRrppDesdeResumen()" style="width:100%;background:linear-gradient(180deg,#4a82b8,#3A6FA0);color:#fff;border:none;border-radius:10px;height:44px;font-size:13px;font-weight:800;cursor:pointer;font-family:Outfit,sans-serif;letter-spacing:.2px;display:flex;align-items:center;justify-content:center;gap:8px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+            Agregar / gestionar públicas
+          </button>
+          <div style="font-size:11px;color:#7d6c52;line-height:1.5;margin-top:10px">
+            <strong style="color:#9A8670">Tip:</strong> también podés gestionarlas desde <strong style="color:#3A6FA0">Mis eventos → Públicas / Vendedores</strong> en cada evento.
+          </div>
+        </div>
       </div>
       <div class="stat-grid">
         <div class="stat-c"><div class="stat-l">Entradas vendidas</div><div class="stat-v" id="org-stat-vendidas">0</div><div class="stat-s" id="org-stat-vendidas-sub">Sin ventas todavía</div></div>
@@ -3025,6 +3046,7 @@ function chipSel(el,cls){
   <div style="font-size:12px;color:var(--t3);line-height:1.5;margin-bottom:14px;padding:10px;background:rgba(58,111,160,.06);border:1px solid rgba(58,111,160,.18);border-radius:8px">
     Invitá gente a vender este evento. Cada una recibe su <strong>link de venta</strong> por email: todo lo que se compre por ese link queda registrado como venta suya.
   </div>
+  <div class="fg" id="rrpp-event-wrap" style="display:none"><label class="fl">Evento</label><select class="fi-sel" id="rrpp-event" onchange="onRrppEventChange()"><option value="">Seleccioná un evento</option></select></div>
   <div class="fg"><label class="fl">Email de la pública/vendedor</label><input class="fi" id="rrpp-email" type="email" placeholder="vendedor@email.com" autocomplete="off"></div>
   <div class="fg"><label class="fl">Nombre (opcional)</label><input class="fi" id="rrpp-nombre" type="text" placeholder="Nombre de referencia"></div>
   <button class="btn-sub c" id="rrpp-invitar-btn" onclick="invitarRrpp(event)" style="margin-top:4px">Invitar y enviar link</button>
@@ -6024,11 +6046,36 @@ function abrirRrppEvento(eventId, eventName){
   if(!requireAccount('Necesitas iniciar sesión.')) return;
   if(!eventId) return;
   _rrppEventoActual = eventId;
+  var wrap = document.getElementById('rrpp-event-wrap'); if(wrap) wrap.style.display='none'; /* evento fijo */
   var nom = document.getElementById('rrpp-modal-evento-nombre'); if(nom) nom.textContent = eventName || '';
   ['rrpp-email','rrpp-nombre'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   var note = document.getElementById('rrpp-note'); if(note){ note.style.display='none'; note.textContent=''; }
   abrirRrppModal();
   cargarRrppList(eventId);
+}
+
+/* Abre la gestión de públicas desde el Resumen: muestra un selector de evento. */
+function abrirRrppDesdeResumen(){
+  if(!requireAccount('Necesitas iniciar sesión.')) return;
+  var store = ejLoadStore();
+  var eventos = (store.myEvents || []).filter(function(e){ return e.status !== 'draft'; });
+  if(!eventos.length){ alert('Primero publicá un evento para invitar públicas.'); return; }
+  var sel = document.getElementById('rrpp-event');
+  var wrap = document.getElementById('rrpp-event-wrap');
+  if(sel){ sel.innerHTML = '<option value="">Seleccioná un evento</option>' + eventos.map(function(e){ return '<option value="'+escapeHtml(String(e.id))+'">'+escapeHtml(e.name||'Evento')+'</option>'; }).join(''); sel.value=''; }
+  if(wrap) wrap.style.display='block';
+  _rrppEventoActual = null;
+  var nom = document.getElementById('rrpp-modal-evento-nombre'); if(nom) nom.textContent='';
+  ['rrpp-email','rrpp-nombre'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  var note = document.getElementById('rrpp-note'); if(note){ note.style.display='none'; }
+  var box = document.getElementById('rrpp-modal-list'); if(box) box.innerHTML='<div style="padding:14px;color:var(--t2);font-size:13px;text-align:center">Elegí un evento para ver e invitar sus públicas.</div>';
+  abrirRrppModal();
+}
+function onRrppEventChange(){
+  var id = (document.getElementById('rrpp-event')||{}).value || '';
+  _rrppEventoActual = id || null;
+  if(id){ cargarRrppList(id); }
+  else { var box = document.getElementById('rrpp-modal-list'); if(box) box.innerHTML='<div style="padding:14px;color:var(--t2);font-size:13px;text-align:center">Elegí un evento.</div>'; }
 }
 async function cargarRrppList(eventId){
   var box = document.getElementById('rrpp-modal-list');
@@ -6040,10 +6087,10 @@ async function cargarRrppList(eventId){
     var lista = d.data || [];
     if(!lista.length){ if(box) box.innerHTML = '<div style="padding:16px;color:var(--t2);font-size:13px;text-align:center;border:1px solid var(--b1);border-radius:10px;background:var(--bg2)">Todavía no invitaste a nadie a vender este evento.</div>'; return; }
     if(box) box.innerHTML = lista.map(function(a){
-      var estadoTxt = a.estado === 'activa' ? 'Activa' : (a.estado === 'pendiente' ? 'Pendiente' : a.estado);
-      var estadoColor = a.estado === 'activa' ? 'var(--g)' : 'var(--t3)';
+      var estadoTxt = a.estado === 'activa' ? 'Activa' : (a.estado === 'pendiente' ? 'Pendiente (no se registró)' : 'Desactivada');
+      var estadoColor = a.estado === 'activa' ? 'var(--g)' : (a.estado === 'pendiente' ? 'var(--t3)' : '#C44040');
       var monto = '$' + Number(a.monto_vendido||0).toLocaleString('es-AR');
-      return '<div style="border:1px solid var(--b1);border-radius:12px;background:var(--bg2);padding:12px">'+
+      return '<div style="border:1px solid var(--b1);border-radius:12px;background:var(--bg2);padding:12px'+(a.estado==='revocada'?';opacity:.6':'')+'">'+
         '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:8px">'+
           '<div style="min-width:0;flex:1"><div style="font-size:13px;color:var(--t1);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(a.nombre || a.email)+'</div>'+
           '<div style="font-size:11px;color:var(--t3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(a.email)+' · <span style="color:'+estadoColor+'">'+escapeHtml(estadoTxt)+'</span></div></div>'+
@@ -6052,7 +6099,9 @@ async function cargarRrppList(eventId){
         '<div style="font-size:11px;color:var(--t2);margin-bottom:8px">Vendido: <strong style="color:var(--t1)">'+monto+'</strong></div>'+
         '<div style="display:flex;gap:6px">'+
           '<button onclick="copiarLinkRrpp(&quot;'+encodeURIComponent(a.sales_link)+'&quot;, this)" style="flex:1;height:32px;border-radius:8px;border:1px solid var(--c);background:rgba(58,111,160,.10);color:var(--t1);font-size:11px;font-weight:600;cursor:pointer">Copiar link</button>'+
-          '<button onclick="revocarRrpp(&quot;'+escapeHtml(String(a.id))+'&quot;, this)" style="height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--b1);background:none;color:var(--t3);font-size:11px;cursor:pointer">Quitar</button>'+
+          (a.estado === 'revocada'
+            ? '<button onclick="activarRrpp(&quot;'+escapeHtml(String(a.id))+'&quot;, this)" style="height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--g);background:rgba(61,170,106,.10);color:var(--g);font-size:11px;font-weight:600;cursor:pointer">Activar</button>'
+            : '<button onclick="revocarRrpp(&quot;'+escapeHtml(String(a.id))+'&quot;, this)" style="height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--b1);background:none;color:var(--t3);font-size:11px;cursor:pointer">Desactivar</button>')+
         '</div>'+
       '</div>';
     }).join('');
@@ -6063,8 +6112,8 @@ async function invitarRrpp(ev){
   var btn = document.getElementById('rrpp-invitar-btn');
   var email = ((document.getElementById('rrpp-email')||{}).value || '').trim();
   var nombre = ((document.getElementById('rrpp-nombre')||{}).value || '').trim();
+  if(!_rrppEventoActual){ _rrppNota('Elegí un evento primero.', false); return; }
   if(!email || !email.includes('@')){ _rrppNota('Ingresá un email válido.', false); return; }
-  if(!_rrppEventoActual){ return; }
   if(btn){ btn.disabled=true; btn.textContent='Invitando...'; }
   try{
     var r = await fetch(BACKEND + '/api/organizador/rrpp/invitar', {
@@ -6082,14 +6131,24 @@ async function invitarRrpp(ev){
 }
 async function revocarRrpp(id, btn){
   if(!id) return;
-  if(!confirm('¿Quitar a este vendedor? Su link deja de sumar ventas nuevas.')) return;
+  if(!confirm('¿Desactivar a este vendedor? Su link deja de sumar ventas nuevas (podés reactivarlo después).')) return;
   if(btn){ btn.disabled=true; btn.textContent='...'; }
   try{
     var r = await fetch(BACKEND + '/api/organizador/rrpp/' + encodeURIComponent(id) + '/revocar', { method:'POST', headers: apiHeaders() });
     var d = await r.json();
     if(!r.ok || !d.ok) throw new Error(d.error||'Error');
     if(_rrppEventoActual) cargarRrppList(_rrppEventoActual);
-  }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Quitar'; } alert(e.message||'No se pudo quitar.'); }
+  }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Desactivar'; } alert(e.message||'No se pudo desactivar.'); }
+}
+async function activarRrpp(id, btn){
+  if(!id) return;
+  if(btn){ btn.disabled=true; btn.textContent='...'; }
+  try{
+    var r = await fetch(BACKEND + '/api/organizador/rrpp/' + encodeURIComponent(id) + '/activar', { method:'POST', headers: apiHeaders() });
+    var d = await r.json();
+    if(!r.ok || !d.ok) throw new Error(d.error||'Error');
+    if(_rrppEventoActual) cargarRrppList(_rrppEventoActual);
+  }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Activar'; } alert(e.message||'No se pudo activar.'); }
 }
 function copiarLinkRrpp(encoded, btn){
   var link = decodeURIComponent(encoded);

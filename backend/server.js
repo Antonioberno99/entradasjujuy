@@ -3184,6 +3184,24 @@ app.post('/api/organizador/rrpp/:id/revocar', requireAuth, async (req, res) => {
   }
 });
 
+/* Reactiva una asignación revocada: vuelve a 'activa' si ya tiene cuenta
+   vinculada, o 'pendiente' si todavía no se registró. */
+app.post('/api/organizador/rrpp/:id/activar', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `UPDATE rrpp_asignaciones
+         SET estado = CASE WHEN rrpp_usuario_id IS NOT NULL THEN 'activa' ELSE 'pendiente' END
+       WHERE id = $1 AND organizador_id = $2 RETURNING estado`,
+      [req.params.id, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Asignación no encontrada' });
+    res.json({ ok: true, estado: rows[0].estado });
+  } catch (err) {
+    console.error('[RRPP ACTIVAR]', err.message);
+    res.status(500).json({ ok: false, error: 'No pudimos activar' });
+  }
+});
+
 /* Panel de la RRPP: sus asignaciones (auto-vinculadas por email al entrar) + ventas. */
 app.get('/api/rrpp/mis-asignaciones', requireAuth, async (req, res) => {
   try {
