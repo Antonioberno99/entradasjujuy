@@ -133,18 +133,17 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
    los flyers de abajo. Usa #portal-publico para ganar especificidad sobre
    la regla .nav{height:58px}. */
 #portal-publico .nav-home{
-  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
-  height:96px;gap:8px;
+  display:flex;align-items:center;justify-content:space-between;
+  height:64px;gap:10px;
 }
 .nav-home .nav-side{display:flex;align-items:center;min-width:0}
-.nav-home .nav-side-l{justify-self:start}
-.nav-home .nav-side-r{justify-self:end;gap:8px}
-.nav-home .nav-center{justify-self:center;text-align:center;min-width:0}
-.nav-home .nav-center .logo{
-  font-size:clamp(23px,6.8vw,32px);line-height:1;white-space:nowrap;
+.nav-home .nav-side-l{gap:10px;flex:1;min-width:0}
+.nav-home .nav-side-r{flex-shrink:0}
+.nav-home .logo{
+  font-size:clamp(19px,5.4vw,24px);line-height:1;white-space:nowrap;flex-shrink:0;
 }
 /* Aire entre el header y los flyers del hero */
-#portal-publico .hero{margin-top:10px}
+#portal-publico .hero{margin-top:6px}
 .logo{font-family:'Fraunces',serif;font-size:17px;font-weight:900;letter-spacing:-0.02em;cursor:pointer;flex-shrink:0}
 .logo.lt{color:var(--t)}.logo.lt span{color:var(--c)}
 .logo.lc{color:var(--c)}.logo.lc span{color:var(--t)}
@@ -727,7 +726,7 @@ footer{background:#0a0704;border-top:1px solid var(--b1);padding:20px 16px}
   .ptab-lbl{font-size:11px;text-transform:none;letter-spacing:0}
   .ptab-icon{width:22px;height:22px;flex-shrink:0}
   .nav{padding:0 40px;height:60px;top:0}
-  #portal-publico .nav-home{height:108px}
+  #portal-publico .nav-home{height:68px}
   .hero-body{padding:80px 48px;max-width:620px}
   .hero-h1{font-size:clamp(64px,9vw,108px)}
   .hero-btns{flex-direction:row}
@@ -1367,6 +1366,14 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
 
   <nav class="nav nav-home">
     <div class="nav-side nav-side-l">
+      <div class="logo lt" onclick="irAlInicio()">Entradas<span>Jujuy</span></div>
+      <button id="btn-ingresar" class="bcta t" onclick="abrirAuth()">Ingresar</button>
+      <button id="btn-usuario" type="button" onclick="abrirMiCuenta()" aria-label="Mi cuenta" style="display:none;align-items:center;gap:8px;height:40px;padding:0 12px 0 9px;border-radius:999px;border:1px solid var(--b2);background:rgba(255,255,255,.04);color:var(--t1);font-family:Outfit,sans-serif;font-weight:600;font-size:13px;cursor:pointer">
+        <span style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#C4692B,#E8A020);display:flex;align-items:center;justify-content:center;color:#0a0704;font-weight:800;font-size:12px;flex-shrink:0" id="nav-avatar">U</span>
+        <span id="nav-nombre" style="max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Usuario</span>
+      </button>
+    </div>
+    <div class="nav-side nav-side-r">
       <div class="user-menu-wrap">
         <button id="btn-menu" class="menu-btn" type="button" onclick="toggleMainMenu(event)" aria-label="Abrir menu" aria-controls="main-menu" aria-expanded="false">
           <span></span><span></span><span></span>
@@ -1391,14 +1398,6 @@ footer { border-top: 1px solid rgba(196,105,43,.15) !important; }
           <button id="menu-logout-action" class="menu-item" type="button" onclick="cerrarMainMenu(); logout()" style="display:none;color:var(--t)">Salir <small>Sesión</small></button>
         </div>
       </div>
-    </div>
-    <div class="nav-center"><div class="logo lt" onclick="irAlInicio()">Entradas<span>Jujuy</span></div></div>
-    <div class="nav-side nav-side-r">
-      <button id="btn-ingresar" class="bcta t" onclick="abrirAuth()">Ingresar</button>
-      <button id="btn-usuario" type="button" onclick="toggleMainMenu(event)" aria-label="Mi cuenta" style="display:none;align-items:center;gap:8px;height:40px;padding:0 12px 0 9px;border-radius:999px;border:1px solid var(--b2);background:rgba(255,255,255,.04);color:var(--t1);font-family:Outfit,sans-serif;font-weight:600;font-size:13px;cursor:pointer">
-        <span style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#C4692B,#E8A020);display:flex;align-items:center;justify-content:center;color:#0a0704;font-weight:800;font-size:12px;flex-shrink:0" id="nav-avatar">U</span>
-        <span id="nav-nombre" style="max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Usuario</span>
-      </button>
     </div>
   </nav>
 
