@@ -2445,6 +2445,58 @@ app.get('/api/eventos/:id/flyer', async (req, res) => {
   }
 });
 
+// ── Página de compartir con preview (Open Graph): GET /e/:id
+//    Vercel hace rewrite de entradasjujuy.shop/e/:id a esta ruta. Los crawlers
+//    (WhatsApp, Facebook, Telegram, etc.) leen los OG tags y muestran el flyer;
+//    los usuarios reales se redirigen al evento en la web.
+app.get('/e/:id', async (req, res) => {
+  const id = String(req.params.id || '');
+  const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const destino = `/?evento=${encodeURIComponent(id)}`;
+  try {
+    const { rows } = await db.query(
+      `SELECT nombre, descripcion, fecha, lugar,
+              (imagen_url IS NOT NULL AND imagen_url <> '') AS has_flyer
+       FROM eventos WHERE id = $1 AND activo = true`, [id]
+    );
+    if (!rows.length) return res.redirect(302, FRONTEND_URL + destino);
+    const ev = rows[0];
+    const nombre = String(ev.nombre || 'Evento');
+    const fechaTxt = ev.fecha ? new Date(ev.fecha).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
+    const descBase = String(ev.descripcion || '').replace(/\s+/g, ' ').trim();
+    const desc = (descBase || [fechaTxt, ev.lugar].filter(Boolean).join(' · ') || 'Conseguí tus entradas en EntradasJujuy').slice(0, 180);
+    const ogImage = ev.has_flyer
+      ? `${BACKEND_URL}/api/eventos/${encodeURIComponent(id)}/flyer`
+      : `${FRONTEND_URL}/logo-ej.png`;
+    const canonical = `${FRONTEND_URL}/e/${encodeURIComponent(id)}`;
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.send(`<!doctype html><html lang="es"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(nombre)} — EntradasJujuy</title>
+<meta name="description" content="${esc(desc)}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="EntradasJujuy">
+<meta property="og:title" content="${esc(nombre)}">
+<meta property="og:description" content="${esc(desc)}">
+<meta property="og:image" content="${esc(ogImage)}">
+<meta property="og:url" content="${esc(canonical)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(nombre)}">
+<meta name="twitter:description" content="${esc(desc)}">
+<meta name="twitter:image" content="${esc(ogImage)}">
+<meta http-equiv="refresh" content="0; url=${esc(destino)}">
+<script>location.replace(${JSON.stringify(destino)});</script>
+</head><body style="margin:0;background:#0a0704;color:#EAE0D0;font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center;padding:24px">
+<div><h1 style="margin:0 0 8px;font-weight:900;color:#C4692B">Entradas<span style="color:#3A6FA0">Jujuy</span></h1><p>Abriendo <strong>${esc(nombre)}</strong>…<br><a href="${esc(destino)}" style="color:#C4692B">Tocá acá si no redirige</a></p></div>
+</body></html>`);
+  } catch (err) {
+    console.error('[OG /e/:id]', err.message);
+    res.redirect(302, FRONTEND_URL + destino);
+  }
+});
+
 // ── INICIAR COMPRA — crea preferencia en MP
 app.post('/api/compra/iniciar', requireAuth, async (req, res) => {
   const { evento_id, items, comprador, rrpp } = req.body || {};

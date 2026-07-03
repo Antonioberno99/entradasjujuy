@@ -4766,7 +4766,9 @@ function compartirEventoActual(e){
 
 function compartirEvento(id, nombre, e){
   if(e){ e.stopPropagation(); }
-  var url = window.location.origin + '/?evento=' + encodeURIComponent(id);
+  /* Link con preview: /e/:id sirve OG tags con el flyer (WhatsApp, etc.) y
+     redirige al evento. Ver ruta /e/:id en el backend + rewrite en vercel.json. */
+  var url = window.location.origin + '/e/' + encodeURIComponent(id);
   var texto = 'Conseguí tus entradas para ' + nombre + ' en EntradasJujuy';
   if(navigator.share){
     navigator.share({ title: nombre, text: texto, url: url }).catch(function(){});

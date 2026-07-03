@@ -4,6 +4,10 @@
   "outputDirectory": "public",
   "rewrites": [
     {
+      "source": "/e/:id",
+      "destination": "https://entradasjujuy-backend.onrender.com/e/:id"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
