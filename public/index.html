@@ -3463,9 +3463,9 @@ function setAutenticado(u, token){
     var avEl = document.getElementById('nav-avatar');
     if(avEl) avEl.textContent = (firstName.charAt(0) || 'U').toUpperCase();
   }
-  /* Cuando hay sesión activa, el menú se abre tocando el avatar/nombre — ocultamos
-     el hamburger para que no haya dos botones que abran el mismo menú */
-  if(bm) bm.style.display = 'none';
+  /* El hamburger es el único que abre el menú (el avatar/nombre abre "Mi cuenta"),
+     así que se mantiene siempre visible, con o sin sesión. */
+  if(bm) bm.style.display = '';
   refrescarMenuUsuario();
   syncCompradorFields();
   cargarMisProductos();
