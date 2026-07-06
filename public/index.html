@@ -5317,13 +5317,13 @@ function renderOrgEvents(events){
     row.innerHTML = '<div class="ev-row-top"><div class="ev-row-nm">'+escapeHtml(item.name)+'</div><span class="badge '+badgeClass+'">'+badgeText+'</span></div>'+
       '<div class="ev-row-meta">'+escapeHtml([formatearFecha(item.date),item.place,item.price].filter(Boolean).join(' · '))+'</div>'+
       '<div class="ev-row-stats" data-org-event-id="'+escapeHtml(String(item.id))+'"><div class="ev-row-stat">'+(item.flyer ? 'Flyer cargado' : 'Sin flyer')+'</div></div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px">'+
+      '<button style="width:100%;height:44px;font-size:13px;font-weight:800;margin-top:10px;border:none;border-radius:10px;background:linear-gradient(180deg,#d8792e,#C4692B);color:#0a0704;cursor:pointer;font-family:Outfit,sans-serif;display:flex;align-items:center;justify-content:center;gap:8px" onclick="editarEvento(\''+escapeHtml(String(item.id))+'\')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0a0704" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Editar evento y precios</button>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">'+
         '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="prepararVentaQrCredit(\''+escapeHtml(String(item.id))+'\')">Vender QR</button>'+
         '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="prepararRegaloEvento(\''+escapeHtml(String(item.id))+'\')">Regalar QR</button>'+
         '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px;background:rgba(196,105,43,.08);border-color:rgba(196,105,43,.35);color:var(--t)" onclick="abrirReenvioEvento(\''+escapeHtml(String(item.id))+'\', \''+escapeHtml(String(item.name||'Evento')).replace(/\'/g,'&#39;')+'\')">Reenviar QR</button>'+
-        '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px" onclick="editarEvento(\''+escapeHtml(String(item.id))+'\')">Editar</button>'+
-      '</div>'+
-      '<button class="btn-sec" style="width:100%;height:38px;font-size:11px;margin-top:6px;background:rgba(58,111,160,.10);border-color:rgba(58,111,160,.4);color:var(--t1)" onclick="abrirRrppEvento(\''+escapeHtml(String(item.id))+'\', \''+escapeHtml(String(item.name||'Evento')).replace(/\'/g,'&#39;')+'\')">Públicas / Vendedores</button>';
+        '<button class="btn-sec" style="height:38px;font-size:11px;padding:0 8px;background:rgba(58,111,160,.10);border-color:rgba(58,111,160,.4);color:var(--t1)" onclick="abrirRrppEvento(\''+escapeHtml(String(item.id))+'\', \''+escapeHtml(String(item.name||'Evento')).replace(/\'/g,'&#39;')+'\')">Públicas</button>'+
+      '</div>';
     var firstRow = list.querySelector('.ev-row');
     list.insertBefore(row, firstRow);
   });
