@@ -2875,6 +2875,32 @@ function mostrarError(msg){
   el.style.display = 'block';
 }
 
+/* Cartel/toast flotante reutilizable: aparece arriba, se va solo.
+   tipo: 'ok' (verde), 'warn' (ámbar), 'error' (rojo). */
+function mostrarToast(msg, tipo){
+  tipo = tipo || 'ok';
+  var t = document.getElementById('ej-toast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'ej-toast';
+    t.style.cssText = 'position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%) translateY(-160%);z-index:100000;max-width:calc(100vw - 28px);padding:14px 18px;border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.42);font-family:Outfit,sans-serif;font-size:14px;font-weight:700;display:flex;align-items:center;gap:10px;transition:transform .38s cubic-bezier(.34,1.3,.64,1),opacity .38s;opacity:0;line-height:1.35;color:#fff';
+    document.body.appendChild(t);
+  }
+  var c = tipo === 'error' ? { bg:'linear-gradient(135deg,#7a2b2b,#4d1a1a)', bd:'#C44040', ic:'✕' }
+        : tipo === 'warn'  ? { bg:'linear-gradient(135deg,#7a5a10,#4d3908)', bd:'#E8A020', ic:'!' }
+        :                    { bg:'linear-gradient(135deg,#1e6b3f,#124327)', bd:'#3DAA6A', ic:'✓' };
+  t.style.background = c.bg;
+  t.style.border = '1px solid ' + c.bd;
+  t.innerHTML = '<span style="flex-shrink:0;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900">'+c.ic+'</span><span>'+escapeHtml(msg)+'</span>';
+  if(t._timer) clearTimeout(t._timer);
+  /* Mostrar directo en opacity 1 (no depender de la transición de entrada, que
+     se pausa con la pestaña en segundo plano). La transición queda para el
+     fade-out. */
+  t.style.transform = 'translateX(-50%) translateY(0)';
+  t.style.opacity = '1';
+  t._timer = setTimeout(function(){ t.style.transform='translateX(-50%) translateY(-160%)'; t.style.opacity='0'; }, 3800);
+}
+
 /* ==========================================
    FEE PREVIEW (solo org)
    ========================================== */
@@ -6006,6 +6032,12 @@ async function enviarVentaQrCredit(event){
       note.textContent = emailOk
         ? ('QR enviado por email. Saldo restante: '+data.data.saldo_restante+'.'+registrado)
         : ('QR generado pero el email no salió. Reintentá desde Mis ventas.'+registrado);
+    }
+    /* Cartel de confirmación visible (queda tras cerrarse el modal) */
+    if(emailOk){
+      mostrarToast((cantidadNum > 1 ? (cantidadNum + ' QR enviados a ') : 'QR enviado a ') + payload.email, 'ok');
+    } else {
+      mostrarToast('QR generado, pero el email no salió. Reintentá desde Mis eventos.', 'warn');
     }
     cargarQrCreditsStatus();
     cargarMisProductos();
