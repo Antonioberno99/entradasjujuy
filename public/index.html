@@ -3007,7 +3007,7 @@ function chipSel(el,cls){
   <div class="fg" id="sell-event-wrap" style="display:none"><label class="fl">Evento</label><select class="fi-sel" id="sell-event" onchange="onSellEventChange()"><option value="">Seleccioná un evento</option></select></div>
   <div class="fg-row"><div class="fg"><label class="fl">Tipo de entrada</label><select class="fi-sel" id="sell-ticket"><option value="">General</option></select></div><div class="fg"><label class="fl">Cantidad</label><input class="fi" id="sell-qty" type="number" min="1" max="20" value="1"></div></div>
   <div class="fg"><label class="fl">Nombre del comprador</label><input class="fi" id="sell-name" type="text" placeholder="Nombre y apellido"></div>
-  <div class="fg-row"><div class="fg"><label class="fl">Email</label><input class="fi" id="sell-email" type="email" placeholder="comprador@email.com"></div><div class="fg"><label class="fl">DNI (opcional)</label><input class="fi" id="sell-dni" type="text" inputmode="numeric" placeholder="Sin puntos"></div></div>
+  <div class="fg"><label class="fl">Email</label><input class="fi" id="sell-email" type="email" placeholder="comprador@email.com"></div>
   <div class="fg"><label class="fl">Precio de venta por entrada</label><input class="fi" id="sell-price" type="number" min="0" inputmode="numeric" placeholder="Ej: 5000"><div style="font-size:11px;color:var(--t3);margin-top:4px;line-height:1.4">Lo que cobraste por afuera (transferencia/efectivo). Suma a tus ingresos para llevar el control. Dejalo vacío o en 0 si fue sin cargo.</div></div>
   <button class="btn-sub c" id="sell-submit" onclick="enviarVentaQrCredit(event)" style="margin-top:4px">Emitir y enviar QR</button>
   <div class="publish-note" id="sell-note" style="margin-top:8px"></div>
@@ -5927,7 +5927,10 @@ function prepararVentaQrCredit(eventId){
   var wrap = document.getElementById('sell-event-wrap');
   if(wrap) wrap.style.display = 'none'; /* evento fijo: ocultar selector */
   var sel = document.getElementById('sell-event');
-  if(sel) sel.value = String(eventId);
+  /* IMPORTANTE: poblar la opción del evento ANTES de setear el value; si el
+     select no tiene esa opción, sel.value no toma y el envío se bloquea con
+     "Seleccioná un evento". */
+  if(sel){ sel.innerHTML = '<option value="'+escapeHtml(String(eventId))+'">'+escapeHtml(ev.name||'Evento')+'</option>'; sel.value = String(eventId); }
   var nombreEl = document.getElementById('sell-modal-evento-nombre');
   if(nombreEl) nombreEl.textContent = ev.name || '';
   _poblarTiposSell(ev);
@@ -5975,7 +5978,7 @@ async function enviarVentaQrCredit(event){
     cantidad: document.getElementById('sell-qty')?.value || '1',
     nombre: document.getElementById('sell-name')?.value.trim() || '',
     email: document.getElementById('sell-email')?.value.trim() || '',
-    dni: document.getElementById('sell-dni')?.value.trim() || '',
+    dni: '',
     precio: document.getElementById('sell-price')?.value || '0'
   };
   if(!payload.evento_id){ if(note){ note.style.color = '#C44040'; note.textContent = 'Seleccioná un evento.'; } return; }
