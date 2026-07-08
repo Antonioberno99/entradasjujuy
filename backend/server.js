@@ -524,7 +524,7 @@ async function sendMailResilient(message, context) {
 // ── Health check
 app.get('/health', (req, res) => res.json({
   ok: true,
-  build: 'fix-qr-duplicados-2026-06-20',
+  build: 'fix-fecha-limite-nula-2026-06-20',
   smtp: safeSmtpInfo(),
   mercadopago: mpConfigStatus(),
 }));
@@ -1252,6 +1252,7 @@ function normalizeDateOnly(value) {
 }
 
 function formatDateOnlyAr(value) {
+  if (!value) return ''; /* null/'' -> vacio (evita que new Date(null) muestre 01/01/1970) */
   const m = String(value || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) return `${m[3]}/${m[2]}/${m[1]}`;
   const d = new Date(value);
@@ -3085,6 +3086,7 @@ app.get('/api/mis-entradas', requireAuth, async (req, res) => {
 });
  
 function datePartsFromLimitBase(value) {
+  if (!value) return null; /* null/'' -> sin fecha (evita que new Date(null) devuelva 1/1/1970) */
   const m = String(value || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) {
     return {
