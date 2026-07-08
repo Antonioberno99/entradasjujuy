@@ -972,6 +972,22 @@ body::after {
   background:rgba(10,7,4,.82);border:1px solid rgba(255,255,255,.28);
   border-radius:999px;padding:5px 12px;backdrop-filter:blur(2px);
 }
+/* Flyer / carrusel - evento agotado (sold out) */
+.flyer-card.flyer-agotado { cursor: default; }
+.flyer-card.flyer-agotado .flyer-img { filter: grayscale(.5) brightness(.62); }
+.flyer-agotado-badge {
+  position:absolute;top:10px;left:10px;z-index:5;
+  font-family:Outfit,sans-serif;font-size:10px;font-weight:700;
+  letter-spacing:.6px;text-transform:uppercase;color:#fff;
+  background:rgba(150,28,28,.92);border:1px solid rgba(255,255,255,.28);
+  border-radius:999px;padding:5px 12px;backdrop-filter:blur(2px);
+}
+/* Badge "Agotado" para destacados / lista / agenda */
+.agotado-badge {
+  display:inline-block;font-family:Outfit,sans-serif;font-size:10px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;color:#fff;background:#a01c1c;
+  border-radius:999px;padding:4px 11px;white-space:nowrap;
+}
 .flyer-cta[disabled] { opacity:.55;cursor:default; }
 /* Panel organizador - badge terminado */
 .badge.b-fin { background:rgba(255,255,255,.08);color:var(--t2);border:1px solid var(--b2); }
@@ -2363,6 +2379,8 @@ const BACKEND = (
    COMPRA - conectada al backend
    ========================================== */
 const QV={g:0,p:0,v:0},PV={g:0,p:0,v:0};
+/* Tope de disponibilidad por tipo en la compra. Infinity = sin dato / sin límite. */
+const DISP={g:Infinity,p:Infinity,v:Infinity};
 let EVENTO_COMPRA_ID = '';
 let TIPOS_COMPRA = {
   g: '',
@@ -2371,7 +2389,7 @@ let TIPOS_COMPRA = {
 };
 
 function QQ(t,d){
-  QV[t]=Math.max(0,QV[t]+d);
+  QV[t]=Math.max(0,Math.min(DISP[t], QV[t]+d));
   document.getElementById('q-'+t).textContent=QV[t];
   const base=QV.g*PV.g+QV.p*PV.p+QV.v*PV.v;
   /* Para el COMPRADOR mostramos un único cargo unificado "Servicios EntradasJujuy" (12,60%).
@@ -4737,8 +4755,11 @@ function actualizarVistaCompra(ev){
     var row = document.getElementById('ticket-row-' + key);
     var name = document.getElementById('ticket-name-' + key);
     var price = document.getElementById('ticket-price-' + key);
+    DISP[key] = Infinity;
     if(row) row.style.display = tipo ? 'flex' : 'none';
     if(tipo){
+      DISP[key] = (tipo.disponibles === null || tipo.disponibles === undefined) ? Infinity : (Number(tipo.disponibles) || 0);
+      var agotadoTipo = DISP[key] === 0;
       /* Construir texto descriptivo del tipo */
       var nombreTipo = tipo.nombre || 'General';
       var promoActiva = tipo.promo_paga > 0 && tipo.promo_recibe > tipo.promo_paga;
@@ -4753,8 +4774,10 @@ function actualizarVistaCompra(ev){
           (detalles.length ? '<div style="font-size:11px;color:var(--t3);font-weight:300;margin-top:2px;line-height:1.3">'+detalles.map(escapeHtml).join(' · ')+'</div>' : '');
       }
       if(price){
-        price.textContent = precioMostrar > 0 ? '$' + Math.round(precioMostrar).toLocaleString('es-AR') : 'Gratis';
+        if(agotadoTipo){ price.textContent = 'Agotado'; price.style.color = '#e05a5a'; }
+        else { price.textContent = precioMostrar > 0 ? '$' + Math.round(precioMostrar).toLocaleString('es-AR') : 'Gratis'; price.style.color = ''; }
       }
+      if(row){ row.style.opacity = agotadoTipo ? '.5' : ''; }
       /* Actualizamos el precio efectivo (por unidad de compra) en PV para QQ */
       PV[key] = precioMostrar;
     }
@@ -4825,6 +4848,20 @@ function esEventoTerminado(ev){
   return fin.getTime() < Date.now();
 }
 
+/* Un evento está AGOTADO si todos sus tipos de entrada llegaron a 0 disponibles
+   (y hay datos de stock). Muestra cartel "Agotado" y sin opción de compra.
+   Si ningún tipo tiene dato de stock, no se marca (evita falsos positivos). */
+function esEventoAgotado(ev){
+  var tipos = (ev && ev.tipos_entrada) || [];
+  if(!tipos.length) return false;
+  var hayDato = false, total = 0;
+  for(var i=0;i<tipos.length;i++){
+    var d = tipos[i] ? tipos[i].disponibles : null;
+    if(d !== null && d !== undefined){ hayDato = true; total += Number(d) || 0; }
+  }
+  return hayDato && total <= 0;
+}
+
 function renderPublicEvents(events){
   var todos = (events || []).filter(function(ev){ return ev.status !== 'draft'; });
   /* Separar vigentes de terminados: los terminados siguen en la web pero
@@ -4861,18 +4898,21 @@ function renderPublicEvents(events){
     if(!todos.length) featured.innerHTML = empty;
     else featured.innerHTML = porVentas.slice(0,3).map(function(ev){
       /* ev-fr va DENTRO de ef-cnt (z-index:10) para no quedar bajo ef-fade */
+      var ag = esEventoAgotado(ev);
+      var clickAttr = ag ? '' : ' onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)"';
+      var derecha = ag
+        ? '<span class="agotado-badge">Agotado</span>'
+        : '<span class="ev-pr '+(ev.price === 'Gratis' ? 'free' : '')+'">'+escapeHtml(ev.price || '')+'</span>'+
+          '<button class="bev t" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button>';
       return '<div class="evf ef-carnaval" style="min-height:140px">'+
         '<div class="ef-geo"></div><div class="ef-fade"></div>'+
         '<div class="ef-cnt">'+
-        '<div onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)" style="flex:1;cursor:pointer">'+
+        '<div'+clickAttr+' style="flex:1;cursor:'+(ag ? 'default' : 'pointer')+'">'+
         '<div class="ev-catrow"><div class="ev-cbar carnaval"></div><span class="ev-ctxt">'+escapeHtml(ev.category || 'Evento')+'</span></div>'+
         '<div class="ev-nm">'+escapeHtml(ev.name)+'</div>'+
         '<div class="ev-dt">'+escapeHtml([formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' - '))+'</div>'+
         '</div>'+
-        '<div class="ev-fr">'+
-        '<span class="ev-pr '+(ev.price === 'Gratis' ? 'free' : '')+'">'+escapeHtml(ev.price || '')+'</span>'+
-        '<button class="bev t" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button>'+
-        '</div></div></div>';
+        '<div class="ev-fr">'+ derecha +'</div></div></div>';
     }).join('');
   }
   if(list){
@@ -4880,13 +4920,16 @@ function renderPublicEvents(events){
     var idsDestacados = porVentas.slice(0,3).map(function(e){ return String(e.id); });
     var restantes = porFecha.filter(function(e){ return idsDestacados.indexOf(String(e.id)) === -1; });
     var htmlVigentes = restantes.map(function(ev){
-      return '<div class="evi" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">'+
-        '<div class="evi-stripe" style="background:var(--t)"></div>'+
+      var ag = esEventoAgotado(ev);
+      var clickAttr = ag ? '' : ' onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)"';
+      var derecha = ag
+        ? '<span class="agotado-badge">Agotado</span>'
+        : '<div class="ivi-pr">'+escapeHtml(ev.price || '')+'</div>'+
+          '<button class="bev t" style="font-size:10px;padding:0 12px;min-height:36px" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button>';
+      return '<div class="evi"'+clickAttr+'>'+
+        '<div class="evi-stripe" style="background:'+(ag ? '#a01c1c' : 'var(--t)')+'"></div>'+
         '<div class="evi-body"><div class="evi-cat">'+escapeHtml(ev.category || 'Evento')+'</div><div class="evi-nm">'+escapeHtml(ev.name)+'</div><div class="evi-meta">'+escapeHtml([formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' - '))+'</div></div>'+
-        '<div class="evi-r">'+
-        '<div class="ivi-pr">'+escapeHtml(ev.price || '')+'</div>'+
-        '<button class="bev t" style="font-size:10px;padding:0 12px;min-height:36px" onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)">Comprar</button>'+
-        '</div></div>';
+        '<div class="evi-r">'+ derecha +'</div></div>';
     }).join('');
     /* Eventos terminados: visibles pero sin compra, con cartel "Terminado" */
     var htmlTerminados = terminadosOrden.map(function(ev){
@@ -4908,11 +4951,14 @@ function renderPublicEvents(events){
       var day = parts[2] || '--';
       var mon = parts[1] || '--';
       var fin = esEventoTerminado(ev);
-      var click = fin ? '' : ' onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)"';
+      var ag = !fin && esEventoAgotado(ev);
+      var bloq = fin || ag;
+      var click = bloq ? '' : ' onclick="seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)"';
       var derecha = fin
         ? '<span class="ag-terminado-badge">Terminado</span>'
-        : '<span class="ag-pr">'+escapeHtml(ev.price || '')+'</span><div class="ag-hr">'+escapeHtml(ev.time || '')+'</div>';
-      return '<div class="ag-i'+(fin ? ' ag-terminado' : '')+'"'+click+'><div class="ag-dt"><span class="ag-day">'+escapeHtml(day)+'</span><span class="ag-mon">'+escapeHtml(mon)+'</span></div><div class="ag-ln"></div><div class="ag-inf"><div class="ag-nm">'+escapeHtml(ev.name)+'</div><div class="ag-meta">'+escapeHtml([ev.category, ev.place].filter(Boolean).join(' - '))+'</div></div><div class="ag-r">'+derecha+'</div></div>';
+        : (ag ? '<span class="agotado-badge">Agotado</span>'
+              : '<span class="ag-pr">'+escapeHtml(ev.price || '')+'</span><div class="ag-hr">'+escapeHtml(ev.time || '')+'</div>');
+      return '<div class="ag-i'+(bloq ? ' ag-terminado' : '')+'"'+click+'><div class="ag-dt"><span class="ag-day">'+escapeHtml(day)+'</span><span class="ag-mon">'+escapeHtml(mon)+'</span></div><div class="ag-ln"></div><div class="ag-inf"><div class="ag-nm">'+escapeHtml(ev.name)+'</div><div class="ag-meta">'+escapeHtml([ev.category, ev.place].filter(Boolean).join(' - '))+'</div></div><div class="ag-r">'+derecha+'</div></div>';
     }).join('');
   }
 }
@@ -4942,18 +4988,20 @@ function renderFlyerMarketing(){
   }
   function buildCard(ev, idx){
     var fin = esEventoTerminado(ev);
+    var agotado = !fin && esEventoAgotado(ev);
+    var bloqueado = fin || agotado;
     var meta = [formatearFecha(ev.date), ev.time, ev.place].filter(Boolean).join(' · ');
     /* Los primeros flyers (los principales del hero) cargan con prioridad alta
        y sin diferir para que aparezcan cuanto antes; el resto, diferidos. */
     var imgLoad = (idx || 0) < 2 ? 'fetchpriority="high"' : 'loading="lazy"';
     var img = ev.flyer ? '<img class="flyer-img" '+imgLoad+' decoding="async" src="'+ev.flyer+'" alt="Flyer de '+escapeHtml(ev.name)+'">' : '<div class="flyer-placeholder"><span>Flyer pendiente</span></div>';
-    var ribbon = fin ? '<span class="flyer-terminado-badge">Terminado</span>' : '';
-    var click = fin ? '' : ' onclick="'+(ev.id ? 'seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)' : 'GOI(&quot;publico&quot;,&quot;compra&quot;)')+'"';
-    var cta = fin ? '<button class="flyer-cta" disabled>Terminado</button>' : '<button class="flyer-cta">Ver evento</button>';
-    return '<article class="flyer-card'+(fin ? ' flyer-terminado' : '')+'"'+click+'>'+ribbon+img+
+    var ribbon = fin ? '<span class="flyer-terminado-badge">Terminado</span>' : (agotado ? '<span class="flyer-agotado-badge">Agotado</span>' : '');
+    var click = bloqueado ? '' : ' onclick="'+(ev.id ? 'seleccionarEventoCompra(&quot;'+escapeHtml(ev.id)+'&quot;)' : 'GOI(&quot;publico&quot;,&quot;compra&quot;)')+'"';
+    var cta = fin ? '<button class="flyer-cta" disabled>Terminado</button>' : (agotado ? '<button class="flyer-cta" disabled>Agotado</button>' : '<button class="flyer-cta">Ver evento</button>');
+    return '<article class="flyer-card'+(fin ? ' flyer-terminado' : (agotado ? ' flyer-agotado' : ''))+'"'+click+'>'+ribbon+img+
       '<div class="flyer-info"><div class="flyer-cat">'+escapeHtml(ev.category || 'Evento')+'</div>'+
       '<div class="flyer-name">'+escapeHtml(ev.name)+'</div>'+
-      '<div class="flyer-meta">'+escapeHtml(meta || 'Próximamente')+'<br>'+escapeHtml(fin ? '' : (ev.price || ''))+'</div>'+
+      '<div class="flyer-meta">'+escapeHtml(meta || 'Próximamente')+'<br>'+escapeHtml(bloqueado ? '' : (ev.price || ''))+'</div>'+
       cta+'</div></article>';
   }
   /* Hero: solo eventos con flyer real (el carousel es 100% visual) */
