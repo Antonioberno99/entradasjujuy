@@ -524,7 +524,7 @@ async function sendMailResilient(message, context) {
 // ── Health check
 app.get('/health', (req, res) => res.json({
   ok: true,
-  build: 'ticket-limit-date-2026-06-30',
+  build: 'fix-qr-duplicados-2026-06-20',
   smtp: safeSmtpInfo(),
   mercadopago: mpConfigStatus(),
 }));
@@ -2844,14 +2844,19 @@ function makeTicketQr(token, width = 240) {
 
 // ── FUNCIÓN CENTRAL: procesar pago aprobado y generar QRs
 async function procesarPago(ordenId, pago) {
-  const { rows } = await db.query("SELECT * FROM ordenes WHERE id = $1 AND estado = 'pendiente'", [ordenId]);
-  if (!rows.length) return;
-  const orden = rows[0];
- 
-  await db.query(
-    "UPDATE ordenes SET estado = 'pagada', mp_payment_id = $2, fecha_pago = NOW() WHERE id = $1",
+  /* CLAIM ATÓMICO: pasamos 'pendiente' -> 'pagada' en un ÚNICO UPDATE condicional.
+     /api/compra/verificar (cuando el comprador vuelve de Mercado Pago) y el
+     webhook de MP pueden llamar a procesarPago casi al mismo tiempo. Con un
+     SELECT y un UPDATE por separado había una ventana de carrera: ambos leían
+     'pendiente' y ambos generaban las entradas -> el comprador recibía el doble
+     (compró 2, recibió 4). Con el UPDATE condicional + RETURNING, solo el primer
+     llamado "gana" la fila; los demás reciben 0 filas y salen sin generar nada. */
+  const claim = await db.query(
+    "UPDATE ordenes SET estado = 'pagada', mp_payment_id = $2, fecha_pago = NOW() WHERE id = $1 AND estado = 'pendiente' RETURNING *",
     [ordenId, pago.id]
   );
+  if (!claim.rows.length) return;
+  const orden = claim.rows[0];
  
   const { rows: items } = await db.query(`
     SELECT oi.*, te.nombre AS tipo_nombre, te.hora_limite, te.fecha_limite, te.promo_paga, te.promo_recibe,
